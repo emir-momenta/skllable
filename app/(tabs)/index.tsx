@@ -225,7 +225,7 @@ export default function HomeScreen() {
               </Text>
             </View>
           ) : (
-          {ongoingLearning.map((track, index) => (
+          ongoingLearning.map((track, index) => (
             <TouchableOpacity 
               key={index} 
               style={styles.trackCard}
@@ -262,6 +262,7 @@ export default function HomeScreen() {
               </View>
             </TouchableOpacity>
           ))}
+          )
           )}
           
           {/* Browse Tracks Button */}
