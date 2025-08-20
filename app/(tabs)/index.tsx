@@ -161,6 +161,7 @@ export default function HomeScreen() {
     };
     
     loadUserStreakData();
+  }, [currentViewDate, streakData]);
 
   // Navigation functions
   const navigateToTimeOffset = (monthsOffset: number) => {
