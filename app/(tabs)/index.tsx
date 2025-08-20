@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, PanGestureHandler, State } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Award, ChevronRight, Play, ChevronLeft, BarChart3, UserCheck, Users } from 'lucide-react-native';
+import { Award, ChevronRight, Play, ChevronLeft, ChartBar as BarChart3, UserCheck, Users } from 'lucide-react-native';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Animated, { 
