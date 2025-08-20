@@ -7,38 +7,149 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width: screenWidth } = Dimensions.get('window');
 
-// Generate mock activity data for the contribution graph (6 months)
-const generateActivityData = () => {
+/**
+ * GitHub-style Activity Heatmap Generator
+ * Creates a predetermined activity pattern from January through August,
+ * then dynamically extends based on user streak completions
+ */
+
+// Predetermined activity pattern for each month (Jan-Aug)
+// Pattern represents realistic learning behavior with varying intensity
+const PREDETERMINED_MONTHLY_PATTERNS = {
+  0: [2, 1, 3, 0, 2, 4, 1, 2, 0, 3, 1, 2, 4, 0, 1, 3, 2, 1, 0, 2, 3, 1, 4, 2, 0, 1, 3, 2, 1, 0, 2], // January - New year motivation
+  1: [1, 2, 0, 3, 1, 2, 0, 1, 3, 2, 1, 0, 2, 3, 1, 0, 2, 1, 3, 0, 1, 2, 0, 3, 1, 2, 0, 1], // February - Consistent but lower
+  2: [3, 2, 4, 1, 3, 2, 0, 4, 1, 3, 2, 1, 4, 0, 3, 2, 1, 4, 3, 2, 0, 1, 4, 3, 2, 1, 0, 3, 4, 2, 1], // March - Spring motivation boost
+  3: [2, 3, 1, 4, 2, 0, 3, 1, 2, 4, 0, 3, 1, 2, 0, 4, 3, 1, 2, 0, 3, 4, 1, 2, 0, 3, 1, 4, 2, 0], // April - Steady progress
+  4: [4, 3, 2, 1, 4, 3, 0, 2, 4, 1, 3, 2, 0, 4, 1, 3, 2, 4, 0, 1, 3, 2, 4, 1, 0, 3, 2, 4, 1, 3, 0], // May - High activity month
+  5: [1, 2, 0, 3, 1, 0, 2, 1, 3, 0, 2, 1, 0, 3, 2, 1, 0, 2, 3, 1, 0, 2, 1, 3, 0, 1, 2, 0, 3, 1], // June - Summer slowdown
+  6: [0, 1, 2, 0, 1, 0, 2, 1, 0, 2, 1, 0, 1, 2, 0, 1, 0, 2, 1, 0, 1, 2, 0, 1, 0, 2, 1, 0, 1, 2, 0], // July - Vacation period
+  7: [1, 2, 3, 1, 2, 0, 3, 2, 1, 3, 2, 0, 1, 3, 2, 1, 0, 2, 3, 1, 2, 0, 3, 1, 2, 3, 0, 1, 2, 3, 1], // August - Back to routine
+};
+
+// Generate the base activity calendar (January through August)
+const generateBaseActivityCalendar = () => {
+  const currentYear = new Date().getFullYear();
   const weeks = [];
-  const today = new Date();
-  const startDate = new Date(today);
-  startDate.setMonth(today.getMonth() - 6); // 6 months ago
   
-  // Generate 26 weeks of data (6 months)
-  for (let week = 0; week < 26; week++) {
+  // Start from January 1st of current year
+  const startDate = new Date(currentYear, 0, 1); // January 1st
+  
+  // Find the first Sunday on or before January 1st to align with week grid
+  const firstSunday = new Date(startDate);
+  firstSunday.setDate(startDate.getDate() - startDate.getDay());
+  
+  // Generate weeks from January through August (approximately 35 weeks)
+  let currentDate = new Date(firstSunday);
+  const endDate = new Date(currentYear, 7, 31); // August 31st
+  
+  while (currentDate <= endDate) {
     const weekData = [];
-    for (let day = 0; day < 7; day++) {
-      const currentDate = new Date(startDate);
-      currentDate.setDate(startDate.getDate() + (week * 7) + day);
+    
+    // Generate 7 days for this week
+    for (let dayOfWeek = 0; dayOfWeek < 7; dayOfWeek++) {
+      const dayDate = new Date(currentDate);
+      dayDate.setDate(currentDate.getDate() + dayOfWeek);
       
-      // Generate random activity level (0-4)
       let activity = 0;
-      if (currentDate <= today) {
-        // Higher probability of activity in recent weeks
-        const daysSinceStart = Math.floor((today - currentDate) / (1000 * 60 * 60 * 24));
-        const recentBonus = daysSinceStart < 30 ? 0.3 : 0;
-        activity = Math.random() + recentBonus > 0.7 ? Math.floor(Math.random() * 4) + 1 : 0;
+      
+      // Only assign activity if the date is within our target range and not in the future
+      if (dayDate >= startDate && dayDate <= endDate && dayDate <= new Date()) {
+        const month = dayDate.getMonth();
+        const dayOfMonth = dayDate.getDate() - 1; // Convert to 0-based index
+        
+        // Get predetermined activity from our pattern
+        if (PREDETERMINED_MONTHLY_PATTERNS[month] && PREDETERMINED_MONTHLY_PATTERNS[month][dayOfMonth] !== undefined) {
+          activity = PREDETERMINED_MONTHLY_PATTERNS[month][dayOfMonth];
+        }
       }
       
       weekData.push({
-        date: currentDate,
-        activity: activity
+        date: new Date(dayDate),
+        activity: activity,
+        isCurrentMonth: dayDate.getMonth() >= 0 && dayDate.getMonth() <= 7, // Jan-Aug
+        isPredetermined: true
       });
     }
+    
     weeks.push(weekData);
+    currentDate.setDate(currentDate.getDate() + 7); // Move to next week
   }
   
   return weeks;
+};
+
+// Extend the calendar with dynamic streak-based activity
+const extendCalendarWithStreaks = (baseWeeks, streakData) => {
+  const extendedWeeks = [...baseWeeks];
+  const lastWeek = extendedWeeks[extendedWeeks.length - 1];
+  const lastDate = lastWeek[lastWeek.length - 1].date;
+  
+  // If user has completed streaks beyond August, add those days
+  if (streakData && streakData.completedDays > 0) {
+    let currentDate = new Date(lastDate);
+    currentDate.setDate(currentDate.getDate() + 1);
+    
+    let remainingStreakDays = streakData.completedDays;
+    
+    while (remainingStreakDays > 0) {
+      // Check if we need to start a new week
+      const lastWeekInExtended = extendedWeeks[extendedWeeks.length - 1];
+      
+      if (lastWeekInExtended.length < 7) {
+        // Add to current week
+        const activityLevel = Math.min(4, Math.floor(remainingStreakDays / 5) + 1); // Higher activity for more streaks
+        lastWeekInExtended.push({
+          date: new Date(currentDate),
+          activity: activityLevel,
+          isCurrentMonth: false,
+          isPredetermined: false,
+          isStreakDay: true
+        });
+      } else {
+        // Start new week
+        const activityLevel = Math.min(4, Math.floor(remainingStreakDays / 5) + 1);
+        extendedWeeks.push([{
+          date: new Date(currentDate),
+          activity: activityLevel,
+          isCurrentMonth: false,
+          isPredetermined: false,
+          isStreakDay: true
+        }]);
+      }
+      
+      currentDate.setDate(currentDate.getDate() + 1);
+      remainingStreakDays--;
+    }
+  }
+  
+  return extendedWeeks;
+};
+
+// Generate month labels for the heatmap
+const generateMonthLabels = (weeks) => {
+  const months = [];
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  
+  let currentMonth = -1;
+  let weekIndex = 0;
+  
+  for (const week of weeks) {
+    const firstDayOfWeek = week.find(day => day.activity >= 0 || day.isCurrentMonth);
+    if (firstDayOfWeek) {
+      const month = firstDayOfWeek.date.getMonth();
+      if (month !== currentMonth) {
+        months.push({
+          name: monthNames[month],
+          weekIndex: weekIndex,
+          month: month
+        });
+        currentMonth = month;
+      }
+    }
+    weekIndex++;
+  }
+  
+  return months;
 };
 
 // Get color for activity level
@@ -57,6 +168,50 @@ export default function HomeScreen() {
   const [userData, setUserData] = useState<any>(null);
   const [greeting, setGreeting] = useState('Good morning!');
   const [ongoingLearning, setOngoingLearning] = useState<any[]>([]);
+  const [activityData, setActivityData] = useState<any[]>([]);
+  const [monthLabels, setMonthLabels] = useState<any[]>([]);
+  const [streakData, setStreakData] = useState({ completedDays: 0, currentStreak: 12 });
+
+  // Generate activity data on component mount and when streak data changes
+  useEffect(() => {
+    const baseCalendar = generateBaseActivityCalendar();
+    const extendedCalendar = extendCalendarWithStreaks(baseCalendar, streakData);
+    const months = generateMonthLabels(extendedCalendar);
+    
+    setActivityData(extendedCalendar);
+    setMonthLabels(months);
+  }, [streakData]);
+
+  // Load streak data from AsyncStorage
+  useEffect(() => {
+    const loadStreakData = async () => {
+      try {
+        // Get current streak from all tracks
+        const addedTracksData = await AsyncStorage.getItem('addedTracks');
+        if (addedTracksData) {
+          const addedTracks = JSON.parse(addedTracksData);
+          let totalCompletedDays = 0;
+          let maxStreak = 0;
+          
+          for (const trackId of addedTracks) {
+            const streakStr = await AsyncStorage.getItem(`streak_${trackId}`);
+            const streak = streakStr ? parseInt(streakStr) : 0;
+            totalCompletedDays += streak;
+            maxStreak = Math.max(maxStreak, streak);
+          }
+          
+          setStreakData({
+            completedDays: Math.max(0, totalCompletedDays - 31), // Subtract August days (31) to get extension days
+            currentStreak: maxStreak
+          });
+        }
+      } catch (error) {
+        console.error('Error loading streak data:', error);
+      }
+    };
+    
+    loadStreakData();
+  }, [ongoingLearning]); // Reload when learning tracks change
 
   useEffect(() => {
     const loadUserData = async () => {
@@ -193,7 +348,7 @@ export default function HomeScreen() {
   }, []);
 
   const streakData = {
-    current: 12,
+    current: streakData.currentStreak,
   };
 
   const handlePlayQuiz = (trackId: string) => {
@@ -279,26 +434,40 @@ export default function HomeScreen() {
           <View style={styles.activityHeader}>
             <Text style={styles.sectionTitle}>Learning Activity</Text>
             <View style={styles.streakBadge}>
-              <Text style={styles.streakNumber}>{streakData.current}</Text>
+              <Text style={styles.streakNumber}>{streakData.currentStreak}</Text>
               <Text style={styles.streakText}>day streak</Text>
             </View>
           </View>
           <View style={styles.activityGraphCard}>
             <View style={styles.contributionGraph}>
               <View style={styles.monthsRow}>
-                {['Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan'].map((month, index) => (
-                  <Text key={index} style={styles.monthLabel}>{month}</Text>
+                {monthLabels.map((month, index) => (
+                  <Text 
+                    key={index} 
+                    style={[
+                      styles.monthLabel,
+                      { 
+                        left: (month.weekIndex * (Math.floor((screenWidth - 88) / monthLabels.length) + 3)),
+                        position: 'absolute'
+                      }
+                    ]}
+                  >
+                    {month.name}
+                  </Text>
                 ))}
               </View>
               <View style={styles.graphGrid}>
-                {generateActivityData().map((week, weekIndex) => (
+                {activityData.map((week, weekIndex) => (
                   <View key={weekIndex} style={styles.weekColumn}>
                     {week.map((day, dayIndex) => (
                       <View
                         key={dayIndex}
                         style={[
                           styles.daySquare,
-                          { backgroundColor: getDayColor(day.activity) }
+                          { 
+                            backgroundColor: getDayColor(day.activity),
+                            opacity: day.isCurrentMonth || day.isStreakDay ? 1 : 0.3
+                          }
                         ]}
                       />
                     ))}
@@ -316,6 +485,13 @@ export default function HomeScreen() {
                 </View>
                 <Text style={styles.legendText}>More</Text>
               </View>
+            </View>
+            
+            {/* Activity Summary */}
+            <View style={styles.activitySummary}>
+              <Text style={styles.activitySummaryText}>
+                {streakData.completedDays > 0 ? `${streakData.completedDays} days beyond August` : 'Building consistency since January'}
+              </Text>
             </View>
           </View>
         </View>
@@ -501,16 +677,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   monthsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    position: 'relative',
     width: screenWidth - 88,
+    height: 20,
     marginBottom: 8,
   },
   monthLabel: {
     fontSize: 11,
     color: '#64748b',
-    flex: 1,
-    textAlign: 'center',
     fontWeight: '500',
   },
   graphGrid: {
@@ -547,6 +721,15 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 1,
+  },
+  activitySummary: {
+    marginTop: 12,
+    alignItems: 'center',
+  },
+  activitySummaryText: {
+    fontSize: 12,
+    color: '#64748b',
+    fontStyle: 'italic',
   },
   noLearningContainer: {
     backgroundColor: '#f8fafc',
