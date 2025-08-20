@@ -107,6 +107,7 @@ export default function HomeScreen() {
   const [heatmapData, setHeatmapData] = useState<{ weeks: any[], monthLabels: any[] }>({ weeks: [], monthLabels: [] });
   const [currentViewDate, setCurrentViewDate] = useState(new Date());
   const [streakData, setStreakData] = useState({ completedDays: 0, currentStreak: 12 });
+  const [sliderPosition, setSliderPosition] = useState(50); // 50% = current date
 
   // Generate heatmap data when view date or streak data changes
   useEffect(() => {
@@ -154,6 +155,7 @@ export default function HomeScreen() {
     const newDate = new Date(currentViewDate);
     newDate.setMonth(newDate.getMonth() - 6);
     setCurrentViewDate(newDate);
+    setSliderPosition(Math.max(0, sliderPosition - 20));
   };
 
   // Navigate to next 6-month period
@@ -161,11 +163,27 @@ export default function HomeScreen() {
     const newDate = new Date(currentViewDate);
     newDate.setMonth(newDate.getMonth() + 6);
     setCurrentViewDate(newDate);
+    setSliderPosition(Math.min(100, sliderPosition + 20));
   };
 
   // Reset to current date
   const resetToToday = () => {
     setCurrentViewDate(new Date());
+    setSliderPosition(50);
+  };
+
+  // Handle slider interaction
+  const handleSliderPress = (event: any) => {
+    const { locationX } = event.nativeEvent;
+    const sliderWidth = 200; // Approximate slider width
+    const newPosition = Math.max(0, Math.min(100, (locationX / sliderWidth) * 100));
+    setSliderPosition(newPosition);
+    
+    // Calculate months offset from center (50%)
+    const monthsOffset = Math.round((newPosition - 50) * 0.24); // 0.24 = 12 months / 50%
+    const newDate = new Date();
+    newDate.setMonth(newDate.getMonth() + monthsOffset);
+    setCurrentViewDate(newDate);
   };
 
   // Load streak data from AsyncStorage
@@ -419,23 +437,33 @@ export default function HomeScreen() {
           </View>
           
           {/* Navigation Controls */}
-          <View style={styles.heatmapControls}>
-            <TouchableOpacity style={styles.navButton} onPress={navigateToPrevious}>
-              <ChevronLeft size={16} color="#64748b" />
-              <Text style={styles.navButtonText}>Previous</Text>
-            </TouchableOpacity>
-            
+          <View style={styles.sliderContainer}>
+            <Text style={styles.sliderLabel}>Navigate Timeline</Text>
+            <View style={styles.sliderWrapper}>
+              <Text style={styles.sliderText}>Past</Text>
+              <View style={styles.customSlider}>
+                <View style={styles.sliderTrack}>
+                  <View 
+                    style={[
+                      styles.sliderThumb,
+                      { left: `${sliderPosition}%` }
+                    ]}
+                  />
+                </View>
+                <TouchableOpacity
+                  style={styles.sliderTouchArea}
+                  onPress={handleSliderPress}
+                />
+              </View>
+              <Text style={styles.sliderText}>Future</Text>
+            </View>
             <TouchableOpacity style={styles.todayButton} onPress={resetToToday}>
               <Text style={styles.todayButtonText}>Today</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity style={styles.navButton} onPress={navigateToNext}>
-              <Text style={styles.navButtonText}>Next</Text>
-              <ChevronRight size={16} color="#64748b" />
             </TouchableOpacity>
           </View>
           
           <View style={styles.activityGraphCard}>
+            <View style={styles.heatmapContainer}>
             <View style={styles.contributionGraph}>
               {/* Month Labels */}
               <View style={styles.monthLabelsContainer}>
@@ -444,7 +472,7 @@ export default function HomeScreen() {
                     key={index} 
                     style={[
                       styles.monthLabel,
-                      { left: month.weekIndex * 14 } // 12px square + 2px gap
+                      { left: Math.min(month.weekIndex * 14, 280) } // Constrain label position
                     ]}
                   >
                     {month.name}
@@ -486,6 +514,7 @@ export default function HomeScreen() {
                 </View>
                 <Text style={styles.legendText}>More</Text>
               </View>
+            </View>
             </View>
             
             {/* Activity Summary */}
@@ -673,29 +702,69 @@ const styles = StyleSheet.create({
     elevation: 6,
     borderWidth: 0.5,
     borderColor: 'rgba(0,0,0,0.05)',
+    overflow: 'hidden',
+    maxWidth: '100%',
   },
-  heatmapControls: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  heatmapContainer: {
+    overflow: 'hidden',
+    maxWidth: '100%',
+    contain: 'layout',
+  },
+  sliderContainer: {
     alignItems: 'center',
     marginBottom: 16,
-    paddingHorizontal: 4,
+    paddingHorizontal: 8,
   },
-  navButton: {
+  sliderLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1e293b',
+    marginBottom: 12,
+  },
+  sliderWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: '#f8fafc',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
+    gap: 12,
+    marginBottom: 12,
+    width: '100%',
+    maxWidth: 280,
   },
-  navButtonText: {
+  sliderText: {
     fontSize: 12,
     color: '#64748b',
     fontWeight: '500',
+  },
+  customSlider: {
+    flex: 1,
+    height: 20,
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  sliderTrack: {
+    height: 4,
+    backgroundColor: '#e2e8f0',
+    borderRadius: 2,
+    position: 'relative',
+  },
+  sliderThumb: {
+    position: 'absolute',
+    top: -6,
+    width: 16,
+    height: 16,
+    backgroundColor: '#3b82f6',
+    borderRadius: 8,
+    shadowColor: '#3b82f6',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  sliderTouchArea: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   todayButton: {
     paddingHorizontal: 16,
@@ -710,12 +779,16 @@ const styles = StyleSheet.create({
   },
   contributionGraph: {
     alignItems: 'flex-start',
+    maxWidth: '100%',
+    overflow: 'hidden',
   },
   monthLabelsContainer: {
     position: 'relative',
-    width: '100%',
+    width: 300,
+    maxWidth: '100%',
     height: 20,
     marginBottom: 8,
+    overflow: 'hidden',
   },
   monthLabel: {
     position: 'absolute',
@@ -727,12 +800,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 2,
     marginBottom: 12,
-    flexWrap: 'nowrap',
+    maxWidth: 300,
     overflow: 'hidden',
+    alignSelf: 'flex-start',
   },
   weekColumn: {
     flexDirection: 'column',
     gap: 2,
+    minWidth: 12,
   },
   daySquare: {
     width: 12,
@@ -743,6 +818,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+    alignSelf: 'flex-start',
   },
   legendText: {
     fontSize: 11,
