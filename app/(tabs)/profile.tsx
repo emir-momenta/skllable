@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -7,15 +8,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function ProfileScreen() {
   const [isEditing, setIsEditing] = useState(false);
-  const [profile, setProfile] = useState({
-    name: 'Sara Chen',
-    email: 'schen@techcorp.com',
-    joinDate: '2024-10-15',
-    timezone: 'America/New_York',
-    department: 'Sales Development',
-    manager: 'Mike Johnson',
-    employeeId: 'TC-2024-1847',
-  });
+  const [profile, setProfile] = useState<any>({});
+  const [userData, setUserData] = useState<any>(null);
 
   const [tempProfile, setTempProfile] = useState(profile);
   
@@ -252,6 +246,38 @@ export default function ProfileScreen() {
   const earnedBadges = badges.filter(badge => badge.earned);
   const availableBadges = badges.filter(badge => !badge.earned);
 
+  // Load user data on component mount
+  useEffect(() => {
+    const loadUserData = async () => {
+      try {
+        const storedData = await AsyncStorage.getItem('userData');
+        if (storedData) {
+          const user = JSON.parse(storedData);
+          setUserData(user);
+          
+          // Set profile data based on user data
+          const profileData = {
+            name: user.name || 'User',
+            email: user.email || 'No email provided',
+            joinDate: user.completedAt ? user.completedAt.split('T')[0] : new Date().toISOString().split('T')[0],
+            timezone: 'America/New_York',
+            department: user.professionalTitle || 'Not specified',
+            company: user.company || null,
+            employeeId: user.employeeId || null,
+            accountType: user.accountType || 'consumer',
+          };
+          
+          setProfile(profileData);
+          setTempProfile(profileData);
+        }
+      } catch (error) {
+        console.error('Error loading user data:', error);
+      }
+    };
+    
+    loadUserData();
+  }, []);
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false}>
@@ -261,8 +287,8 @@ export default function ProfileScreen() {
             <User size={32} color="#ffffff" />
           </View>
           <View style={styles.profileInfo}>
-            {isEditing ? (
-              <TextInput
+            {profile?.accountType === 'business' && profile?.company && (
+              <Text style={styles.companyName}>{profile.company}</Text>
                 style={styles.nameInput}
                 value={tempProfile.name}
                 onChangeText={(text) => setTempProfile({...tempProfile, name: text})}
@@ -277,9 +303,11 @@ export default function ProfileScreen() {
               <Text style={styles.profileEmail}>{profile.email}</Text>
             </View>
             
-            <View style={styles.profileMeta}>
-              <Text style={styles.profileDepartment}>{profile.department}</Text>
-            </View>
+            {profile.department && (
+              <View style={styles.profileMeta}>
+                <Text style={styles.profileDepartment}>{profile.department}</Text>
+              </View>
+            )}
             
             <View style={styles.profileMeta}>
               <Calendar size={14} color="#64748b" />
@@ -460,22 +488,24 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* Corporate Account Info */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Account Information</Text>
-          <View style={styles.corporateCard}>
-            <Text style={styles.corporateTitle}>Corporate Account</Text>
-            <View style={styles.corporateInfo}>
-              <Text style={styles.corporateLabel}>Employee ID: {profile.employeeId}</Text>
-              <Text style={styles.corporateLabel}>Department: {profile.department}</Text>
-              <Text style={styles.corporateLabel}>Manager: {profile.manager}</Text>
+        {/* Corporate Account Info - Only for business users */}
+        {profile?.accountType === 'business' && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Account Information</Text>
+            <View style={styles.corporateCard}>
+              <Text style={styles.corporateTitle}>Corporate Account</Text>
+              <View style={styles.corporateInfo}>
+                <Text style={styles.corporateLabel}>Employee ID: {profile.employeeId}</Text>
+                <Text style={styles.corporateLabel}>Department: {profile.department}</Text>
+                <Text style={styles.corporateLabel}>Manager: {profile.manager || 'Not specified'}</Text>
+              </View>
+              <Text style={styles.corporateNote}>
+                This account is managed by your organization's IT department. 
+                For account changes or technical support, please contact IT.
+              </Text>
             </View>
-            <Text style={styles.corporateNote}>
-              This account is managed by your organization's IT department. 
-              For account changes or technical support, please contact IT.
-            </Text>
           </View>
-        </View>
+        )}
 
         {/* Settings */}
         <View style={styles.section}>
@@ -499,7 +529,7 @@ export default function ProfileScreen() {
             <ExternalLink size={16} color="#9ca3af" />
           </TouchableOpacity>
           
-          {profile.accountType === 'business' && (
+          {profile?.accountType === 'business' && (
             <TouchableOpacity style={styles.settingItem} onPress={contactIT}>
               <User size={20} color="#64748b" />
               <Text style={styles.settingText}>Contact IT Support</Text>

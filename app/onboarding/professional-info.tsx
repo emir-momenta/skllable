@@ -46,7 +46,9 @@ export default function ProfessionalInfo() {
   const [selectedRole, setSelectedRole] = useState<string | null>(null);
   const [customRole, setCustomRole] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [userData, setUserData] = useState<any>(null);
+  const [filteredRoles, setFilteredRoles] = useState(PROFESSIONAL_ROLES);
 
   React.useEffect(() => {
     const loadUserData = async () => {
@@ -63,9 +65,22 @@ export default function ProfessionalInfo() {
     loadUserData();
   }, []);
 
+  // Filter roles based on search query
+  React.useEffect(() => {
+    if (searchQuery.trim()) {
+      const filtered = PROFESSIONAL_ROLES.filter(role =>
+        role.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+      setFilteredRoles(filtered);
+    } else {
+      setFilteredRoles(PROFESSIONAL_ROLES);
+    }
+  }, [searchQuery]);
+
   const handleRoleSelect = (role: string) => {
     setSelectedRole(role);
     setShowDropdown(false);
+    setSearchQuery(''); // Clear search when role is selected
     if (role !== 'Other') {
       setCustomRole('');
     }
@@ -158,8 +173,24 @@ export default function ProfessionalInfo() {
               onPress={() => setShowDropdown(false)}
             >
               <View style={styles.dropdownModal}>
+                {/* Search Bar */}
+                <View style={styles.searchContainer}>
+                  <Search size={16} color="#64748b" />
+                  <TextInput
+                    style={styles.searchInput}
+                    placeholder="Search roles..."
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                    placeholderTextColor="#9ca3af"
+                  />
+                  {searchQuery.length > 0 && (
+                    <TouchableOpacity onPress={() => setSearchQuery('')}>
+                      <X size={16} color="#64748b" />
+                    </TouchableOpacity>
+                  )}
+                </View>
                 <ScrollView style={styles.dropdownList} showsVerticalScrollIndicator={false}>
-                  {PROFESSIONAL_ROLES.map((role, index) => (
+                  {filteredRoles.map((role, index) => (
                     <TouchableOpacity
                       key={index}
                       style={[
@@ -399,6 +430,24 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 20,
     elevation: 10,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    margin: 16,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    gap: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#1e293b',
   },
   searchContainer: {
     flexDirection: 'row',
