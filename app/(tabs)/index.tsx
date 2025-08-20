@@ -1,17 +1,17 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, PanGestureHandler, State } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Award, ChevronRight, Play, ChevronLeft } from 'lucide-react-native';
+import { Award, ChevronRight, Play } from 'lucide-react-native';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import Animated, { 
-  useAnimatedGestureHandler, 
-  useAnimatedStyle, 
-  useSharedValue, 
-  withSpring, 
-  runOnJS 
+import Animated, {
+  useAnimatedGestureHandler,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  runOnJS,
 } from 'react-native-reanimated';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { GestureHandlerRootView, PanGestureHandler } from 'react-native-gesture-handler';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -22,89 +22,126 @@ const { width: screenWidth } = Dimensions.get('window');
  */
 
 // Generate 6-month activity calendar (3 months back, current month, 2 months forward)
-const generateActivityCalendar = (centerDate, userStreakData = {}) => {
-  const weeks = [];
+const generateActivityCalendar = (centerDate: Date, userStreakData: Record<string, number> = {}) => {
+  const weeks: Array<
+    Array<{
+      date: Date;
+      activity: number;
+      isInRange: boolean;
+      isFuture: boolean;
+      isToday: boolean;
+    }>
+  > = [];
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  
+
   // Calculate start date (3 months back from center date)
   const startDate = new Date(centerDate);
   startDate.setMonth(startDate.getMonth() - 3);
   startDate.setDate(1); // Start from first day of the month
-  
+
   // Calculate end date (2 months forward from center date)
   const endDate = new Date(centerDate);
   endDate.setMonth(endDate.getMonth() + 2);
   endDate.setDate(new Date(endDate.getFullYear(), endDate.getMonth() + 1, 0).getDate()); // Last day of month
-  
+
   // Find the first Sunday on or before start date to align with week grid
   const firstSunday = new Date(startDate);
   firstSunday.setDate(startDate.getDate() - startDate.getDay());
-  
+
   // Generate weeks for the 6-month period
   let currentDate = new Date(firstSunday);
-  
+
   while (currentDate <= endDate) {
-    const weekData = [];
-    
+    const weekData: Array<{
+      date: Date;
+      activity: number;
+      isInRange: boolean;
+      isFuture: boolean;
+      isToday: boolean;
+    }> = [];
+
     // Generate 7 days for this week
     for (let dayOfWeek = 0; dayOfWeek < 7; dayOfWeek++) {
       const dayDate = new Date(currentDate);
       dayDate.setDate(currentDate.getDate() + dayOfWeek);
-      
+
       let activity = 0;
-      
+
       // Check if this date has user activity from streaks
       const dateKey = dayDate.toDateString();
       if (userStreakData[dateKey]) {
         activity = Math.min(4, userStreakData[dateKey]); // Cap at level 4
       }
-      
+
       weekData.push({
         date: new Date(dayDate),
         activity: activity,
         isInRange: dayDate >= startDate && dayDate <= endDate,
         isFuture: dayDate > new Date(),
-        isToday: dayDate.toDateString() === new Date().toDateString()
+        isToday: dayDate.toDateString() === new Date().toDateString(),
       });
     }
-    
+
     weeks.push(weekData);
     currentDate.setDate(currentDate.getDate() + 7); // Move to next week
   }
-  
+
   // Generate month labels
-  const monthLabels = [];
+  const monthLabels: Array<{ name: string; weekIndex: number; month: number }> = [];
   let currentMonth = -1;
   let weekIndex = 0;
-  
+
   for (const week of weeks) {
-    const firstDayInRange = week.find(day => day.isInRange);
+    const firstDayInRange = week.find((day) => day.isInRange);
     if (firstDayInRange) {
       const month = firstDayInRange.date.getMonth();
       if (month !== currentMonth) {
         monthLabels.push({
           name: monthNames[month],
           weekIndex: weekIndex,
-          month: month
+          month: month,
         });
         currentMonth = month;
       }
     }
     weekIndex++;
   }
-  
+
   return { weeks, monthLabels };
 };
 
+// Generate month labels with proper spacing to prevent overlap
+const generateMonthLabels = (weeks: any[]) => {
+  const monthLabels: Array<{ name: string; weekIndex: number; month: number }> = [];
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  let currentMonth = -1;
+  let weekIndex = 0;
+  const minSpacing = 4; // Minimum weeks between labels
+  let lastLabelWeek = -minSpacing;
+
+  for (const week of weeks) {
+    const firstDayInRange = week.find((day: any) => day.isInRange);
+    if (firstDayInRange) {
+      const month = firstDayInRange.date.getMonth();
+      if (month !== currentMonth && weekIndex - lastLabelWeek >= minSpacing) {
+        monthLabels.push({
+          name: monthNames[month],
+          weekIndex: weekIndex,
+          month: month,
+        });
+        currentMonth = month;
+        lastLabelWeek = weekIndex;
+      }
+    }
+    weekIndex++;
+  }
+
+  return monthLabels;
+};
+
 // Get color for activity level
-const getDayColor = (activity) => {
-  const colors = [
-    '#ebedf0', // No activity
-    '#c6e48b', // Low activity
-    '#7bc96f', // Medium-low activity
-    '#239a3b', // Medium-high activity
-    '#196127'  // High activity
-  ];
+const getDayColor = (activity: number) => {
+  const colors = ['#ebedf0', '#c6e48b', '#7bc96f', '#239a3b', '#196127'];
   return colors[activity] || colors[0];
 };
 
@@ -112,10 +149,10 @@ export default function HomeScreen() {
   const [userData, setUserData] = useState<any>(null);
   const [greeting, setGreeting] = useState('Good morning!');
   const [ongoingLearning, setOngoingLearning] = useState<any[]>([]);
-  const [heatmapData, setHeatmapData] = useState<{ weeks: any[], monthLabels: any[] }>({ weeks: [], monthLabels: [] });
+  const [heatmapData, setHeatmapData] = useState<{ weeks: any[]; monthLabels: any[] }>({ weeks: [], monthLabels: [] });
   const [currentViewDate, setCurrentViewDate] = useState(new Date());
   const [streakData, setStreakData] = useState({ completedDays: 0, currentStreak: 12 });
-  
+
   // Animation values for sliding
   const translateX = useSharedValue(0);
   const gestureActive = useSharedValue(false);
@@ -126,29 +163,29 @@ export default function HomeScreen() {
     const loadUserStreakData = async () => {
       try {
         // Load actual user streak data from AsyncStorage
-        const userStreakData = {};
+        const userStreakData: Record<string, number> = {};
         const addedTracksData = await AsyncStorage.getItem('addedTracks');
-        
+
         if (addedTracksData) {
           const addedTracks = JSON.parse(addedTracksData);
-          
+
           // For each track, get the streak data and map to dates
           for (const trackId of addedTracks) {
             const streakStr = await AsyncStorage.getItem(`streak_${trackId}`);
             const streak = streakStr ? parseInt(streakStr) : 0;
-            
+
             // Add activity for each day in the streak (working backwards from today)
             for (let i = 0; i < streak; i++) {
               const date = new Date();
               date.setDate(date.getDate() - i);
               const dateKey = date.toDateString();
-              
+
               // Increment activity level for this date (multiple tracks can contribute)
               userStreakData[dateKey] = (userStreakData[dateKey] || 0) + 1;
             }
           }
         }
-        
+
         const calendarData = generateActivityCalendar(currentViewDate, userStreakData);
         const monthLabels = generateMonthLabels(calendarData.weeks);
         setHeatmapData({ ...calendarData, monthLabels });
@@ -160,19 +197,19 @@ export default function HomeScreen() {
         setHeatmapData({ ...calendarData, monthLabels });
       }
     };
-    
+
     loadUserStreakData();
   }, [currentViewDate, streakData]);
 
   // Navigation functions
   const navigateToTimeOffset = (monthsOffset: number) => {
     if (isTransitioning) return;
-    
+
     setIsTransitioning(true);
     const newDate = new Date(currentViewDate);
     newDate.setMonth(newDate.getMonth() + monthsOffset);
     setCurrentViewDate(newDate);
-    
+
     // Reset animation after transition
     setTimeout(() => {
       setIsTransitioning(false);
@@ -183,11 +220,11 @@ export default function HomeScreen() {
   // Reset to today
   const resetToToday = () => {
     if (isTransitioning) return;
-    
+
     setIsTransitioning(true);
     setCurrentViewDate(new Date());
     translateX.value = withSpring(0);
-    
+
     setTimeout(() => {
       setIsTransitioning(false);
     }, 300);
@@ -198,26 +235,27 @@ export default function HomeScreen() {
     onStart: () => {
       gestureActive.value = true;
     },
-    onActive: (event) => {
+    onActive: (event: any) => {
       // Allow horizontal sliding with resistance at edges
       const maxTranslate = 150;
       const resistance = 0.7;
-      
+
       if (Math.abs(event.translationX) > maxTranslate) {
-        translateX.value = event.translationX > 0 
-          ? maxTranslate + (event.translationX - maxTranslate) * resistance
-          : -maxTranslate + (event.translationX + maxTranslate) * resistance;
+        translateX.value =
+          event.translationX > 0
+            ? maxTranslate + (event.translationX - maxTranslate) * resistance
+            : -maxTranslate + (event.translationX + maxTranslate) * resistance;
       } else {
         translateX.value = event.translationX;
       }
     },
-    onEnd: (event) => {
+    onEnd: (event: any) => {
       gestureActive.value = false;
-      
+
       // Determine if swipe was significant enough to navigate
       const threshold = 80;
       const velocity = event.velocityX;
-      
+
       if (Math.abs(event.translationX) > threshold || Math.abs(velocity) > 500) {
         if (event.translationX > 0 || velocity > 500) {
           // Swipe right - go to previous period
@@ -240,35 +278,6 @@ export default function HomeScreen() {
     };
   });
 
-  // Generate month labels with proper spacing to prevent overlap
-  const generateMonthLabels = (weeks: any[]) => {
-    const monthLabels = [];
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    let currentMonth = -1;
-    let weekIndex = 0;
-    const minSpacing = 4; // Minimum weeks between labels
-    let lastLabelWeek = -minSpacing;
-    
-    for (const week of weeks) {
-      const firstDayInRange = week.find(day => day.isInRange);
-      if (firstDayInRange) {
-        const month = firstDayInRange.date.getMonth();
-        if (month !== currentMonth && weekIndex - lastLabelWeek >= minSpacing) {
-          monthLabels.push({
-            name: monthNames[month],
-            weekIndex: weekIndex,
-            month: month
-          });
-          currentMonth = month;
-          lastLabelWeek = weekIndex;
-        }
-      }
-      weekIndex++;
-    }
-    
-    return monthLabels;
-  };
-
   // Load streak data from AsyncStorage
   useEffect(() => {
     const loadStreakData = async () => {
@@ -277,23 +286,23 @@ export default function HomeScreen() {
         if (addedTracksData) {
           const addedTracks = JSON.parse(addedTracksData);
           let maxStreak = 0;
-          
+
           for (const trackId of addedTracks) {
             const streakStr = await AsyncStorage.getItem(`streak_${trackId}`);
             const streak = streakStr ? parseInt(streakStr) : 0;
             maxStreak = Math.max(maxStreak, streak);
           }
-          
+
           setStreakData({
             completedDays: 0, // Not used anymore
-            currentStreak: maxStreak
+            currentStreak: maxStreak,
           });
         }
       } catch (error) {
         console.error('Error loading streak data:', error);
       }
     };
-    
+
     loadStreakData();
   }, [ongoingLearning]); // Reload when learning tracks change
 
@@ -304,7 +313,7 @@ export default function HomeScreen() {
         if (storedData) {
           const user = JSON.parse(storedData);
           setUserData(user);
-          
+
           // Generate personalized greeting
           const firstName = user.name ? user.name.split(' ')[0] : '';
           if (firstName) {
@@ -315,7 +324,7 @@ export default function HomeScreen() {
         console.error('Error loading user data:', error);
       }
     };
-    
+
     loadUserData();
   }, []);
 
@@ -325,94 +334,46 @@ export default function HomeScreen() {
       try {
         const addedTracksData = await AsyncStorage.getItem('addedTracks');
         const trackActivityData = await AsyncStorage.getItem('trackActivity');
-        
+
         if (addedTracksData) {
           const addedTracks = JSON.parse(addedTracksData);
           const trackActivity = trackActivityData ? JSON.parse(trackActivityData) : {};
-          
+
           // All available tracks data
           const allTracks = [
-            {
-              id: 'data-analysis',
-              title: 'Communication Mastery',
-              subtitle: 'Intent Level Progress',
-              progress: 5,
-              total: 7,
-              daysLeft: 2,
-              color: '#10b981',
-            },
-            {
-              id: 'sdr-basics',
-              title: 'Leadership Fundamentals',
-              subtitle: 'Intent Level Progress',
-              progress: 45,
-              total: 90,
-              daysLeft: 45,
-              color: '#3b82f6',
-            },
-            {
-              id: 'customer-success',
-              title: 'Emotional Intelligence',
-              subtitle: 'Intent Level Progress',
-              progress: 0,
-              total: 7,
-              daysLeft: 7,
-              color: '#f59e0b',
-            },
-            {
-              id: 'leadership-fundamentals',
-              title: 'Time Management Excellence',
-              subtitle: 'Intent Level Progress',
-              progress: 0,
-              total: 7,
-              daysLeft: 7,
-              color: '#8b5cf6',
-            },
-            {
-              id: 'emotional-intelligence',
-              title: 'Conflict Resolution',
-              subtitle: 'Intent Level Progress',
-              progress: 0,
-              total: 7,
-              daysLeft: 7,
-              color: '#ec4899',
-            },
-            {
-              id: 'communication-mastery',
-              title: 'Customer Service Excellence',
-              subtitle: 'Intent Level Progress',
-              progress: 0,
-              total: 7,
-              daysLeft: 7,
-              color: '#06b6d4',
-            },
+            { id: 'data-analysis', title: 'Communication Mastery', subtitle: 'Intent Level Progress', progress: 5, total: 7, daysLeft: 2, color: '#10b981' },
+            { id: 'sdr-basics', title: 'Leadership Fundamentals', subtitle: 'Intent Level Progress', progress: 45, total: 90, daysLeft: 45, color: '#3b82f6' },
+            { id: 'customer-success', title: 'Emotional Intelligence', subtitle: 'Intent Level Progress', progress: 0, total: 7, daysLeft: 7, color: '#f59e0b' },
+            { id: 'leadership-fundamentals', title: 'Time Management Excellence', subtitle: 'Intent Level Progress', progress: 0, total: 7, daysLeft: 7, color: '#8b5cf6' },
+            { id: 'emotional-intelligence', title: 'Conflict Resolution', subtitle: 'Intent Level Progress', progress: 0, total: 7, daysLeft: 7, color: '#ec4899' },
+            { id: 'communication-mastery', title: 'Customer Service Excellence', subtitle: 'Intent Level Progress', progress: 0, total: 7, daysLeft: 7, color: '#06b6d4' },
           ];
-          
+
           // Filter to only added tracks
-          const addedTrackData = allTracks.filter(track => addedTracks.includes(track.id));
-          
+          const addedTrackData = allTracks.filter((track) => addedTracks.includes(track.id));
+
           // Sort by priority: 1) Most progress, 2) Most recently added
           const prioritizedTracks = addedTrackData.sort((a, b) => {
             const aActivity = trackActivity[a.id];
             const bActivity = trackActivity[b.id];
-            
+
             // First priority: tracks with progress
             if (a.progress > 0 && b.progress === 0) return -1;
             if (b.progress > 0 && a.progress === 0) return 1;
-            
+
             // If both have progress, sort by progress amount
             if (a.progress > 0 && b.progress > 0) {
               return b.progress - a.progress;
             }
-            
+
             // If neither has progress, sort by most recently added
             if (aActivity && bActivity) {
               return new Date(bActivity.addedAt).getTime() - new Date(aActivity.addedAt).getTime();
             }
-            
+
             return 0;
           });
-          
+
           // Take only the top 2 tracks
           setOngoingLearning(prioritizedTracks.slice(0, 2));
         } else {
@@ -422,12 +383,12 @@ export default function HomeScreen() {
         console.error('Error loading ongoing learning:', error);
       }
     };
-    
+
     loadOngoingLearning();
-    
+
     // Set up interval to refresh data periodically
     const interval = setInterval(loadOngoingLearning, 2000);
-    
+
     return () => clearInterval(interval);
   }, []);
 
@@ -461,50 +422,34 @@ export default function HomeScreen() {
                 </Text>
               </View>
             ) : (
-            ongoingLearning.map((track, index) => (
-              <TouchableOpacity 
-                key={index} 
-                style={styles.trackCard}
-                onPress={() => router.push('/tracks')}
-              >
-                <View style={styles.trackHeader}>
-                  <Award size={20} color={track.color} />
-                  <View style={styles.trackInfo}>
-                    <Text style={styles.trackTitle}>{track.title}</Text>
-                    <Text style={styles.trackSubtitle}>{track.subtitle}</Text>
-                  </View>
-                  <TouchableOpacity 
-                    style={[styles.playButton, { backgroundColor: track.color }]}
-                    onPress={() => handlePlayQuiz(track.id)}
-                  >
-                    <Play size={16} color="#ffffff" />
+              ongoingLearning.map((track, index) => {
+                return (
+                  <TouchableOpacity key={index} style={styles.trackCard} onPress={() => router.push('/tracks')}>
+                    <View style={styles.trackHeader}>
+                      <Award size={20} color={track.color} />
+                      <View style={styles.trackInfo}>
+                        <Text style={styles.trackTitle}>{track.title}</Text>
+                        <Text style={styles.trackSubtitle}>{track.subtitle}</Text>
+                      </View>
+                      <TouchableOpacity style={[styles.playButton, { backgroundColor: track.color }]} onPress={() => handlePlayQuiz(track.id)}>
+                        <Play size={16} color="#ffffff" />
+                      </TouchableOpacity>
+                    </View>
+                    <View style={styles.progressContainer}>
+                      <View style={styles.progressBar}>
+                        <View style={[styles.progressFill, { width: `${(track.progress / track.total) * 100}%`, backgroundColor: track.color }]} />
+                      </View>
+                      <Text style={styles.progressText}>
+                        {track.progress}/{track.total} days • {track.daysLeft} days left
+                      </Text>
+                    </View>
                   </TouchableOpacity>
-                </View>
-                <View style={styles.progressContainer}>
-                  <View style={styles.progressBar}>
-                    <View 
-                      style={[
-                        styles.progressFill, 
-                        { 
-                          width: `${(track.progress / track.total) * 100}%`,
-                          backgroundColor: track.color
-                        }
-                      ]} 
-                    />
-                  </View>
-                  <Text style={styles.progressText}>
-                    {track.progress}/{track.total} days • {track.daysLeft} days left
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            ))
+                );
+              })
             )}
-            
+
             {/* Browse Tracks Button */}
-            <TouchableOpacity 
-              style={styles.browseTracksButton}
-              onPress={() => router.push('/tracks')}
-            >
+            <TouchableOpacity style={styles.browseTracksButton} onPress={() => router.push('/tracks')}>
               <Text style={styles.browseTracksText}>Browse All Tracks</Text>
               <ChevronRight size={16} color="#3b82f6" />
             </TouchableOpacity>
@@ -519,7 +464,7 @@ export default function HomeScreen() {
                 <Text style={styles.streakText}>day streak</Text>
               </View>
             </View>
-            
+
             {/* Swipe Hint */}
             <View style={styles.swipeHint}>
               <Text style={styles.swipeHintText}>← Swipe to navigate through time →</Text>
@@ -527,48 +472,47 @@ export default function HomeScreen() {
                 <Text style={styles.todayButtonText}>Today</Text>
               </TouchableOpacity>
             </View>
-            
+
             <View style={styles.activityGraphCard}>
               <PanGestureHandler onGestureEvent={panGestureHandler}>
                 <Animated.View style={[styles.heatmapContainer, animatedStyle]}>
                   <View style={styles.contributionGraph}>
                     {/* Month Labels with Anti-Overlap Logic */}
                     <View style={styles.monthLabelsContainer}>
-                      {heatmapData.monthLabels.map((month, index) => (
-                        <Text 
-                          key={`${month.month}-${index}`}
-                          style={[
-                            styles.monthLabel,
-                            { left: Math.min(month.weekIndex * 14, 260) }
-                          ]}
-                        >
-                          {month.name}
-                        </Text>
-                      ))}
+                      {heatmapData.monthLabels.map((month: any, index: number) => {
+                        return (
+                          <Text
+                            key={`${month.month}-${index}`}
+                            style={[styles.monthLabel, { left: Math.min(month.weekIndex * 14, 260) }]}
+                          >
+                            {month.name}
+                          </Text>
+                        );
+                      })}
                     </View>
-                    
+
                     {/* Heatmap Grid */}
                     <View style={styles.graphGrid}>
-                      {heatmapData.weeks.map((week, weekIndex) => (
+                      {heatmapData.weeks.map((week: any[], weekIndex: number) => (
                         <View key={weekIndex} style={styles.weekColumn}>
-                          {week.map((day, dayIndex) => (
+                          {week.map((day: any, dayIndex: number) => (
                             <View
                               key={dayIndex}
                               style={[
                                 styles.daySquare,
-                                { 
+                                {
                                   backgroundColor: getDayColor(day.activity),
                                   opacity: day.isInRange ? 1 : 0.3,
                                   borderWidth: day.isToday ? 2 : 0,
-                                  borderColor: day.isToday ? '#3b82f6' : 'transparent'
-                                }
+                                  borderColor: day.isToday ? '#3b82f6' : 'transparent',
+                                },
                               ]}
                             />
                           ))}
                         </View>
                       ))}
                     </View>
-                    
+
                     {/* Legend */}
                     <View style={styles.graphLegend}>
                       <Text style={styles.legendText}>Less</Text>
@@ -584,7 +528,7 @@ export default function HomeScreen() {
                   </View>
                 </Animated.View>
               </PanGestureHandler>
-              
+
               {/* Activity Summary */}
               <View style={styles.activitySummary}>
                 <Text style={styles.activitySummaryText}>
@@ -612,9 +556,7 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 20,
   },
-  headerContent: {
-    flex: 1,
-  },
+  headerContent: { flex: 1 },
   companyName: {
     fontSize: 20,
     fontWeight: '600',
@@ -622,18 +564,8 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     letterSpacing: -0.2,
   },
-  greeting: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#1e293b',
-    letterSpacing: -0.5,
-  },
-  subtitle: {
-    fontSize: 17,
-    color: '#64748b',
-    marginTop: 4,
-    fontWeight: '400',
-  },
+  greeting: { fontSize: 28, fontWeight: '700', color: '#1e293b', letterSpacing: -0.5 },
+  subtitle: { fontSize: 17, color: '#64748b', marginTop: 4, fontWeight: '400' },
   streakBadge: {
     backgroundColor: '#10b981',
     borderRadius: 12,
@@ -646,34 +578,11 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 8,
   },
-  streakNumber: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#ffffff',
-  },
-  streakText: {
-    fontSize: 11,
-    color: '#ffffff',
-    opacity: 0.95,
-    fontWeight: '500',
-  },
-  section: {
-    marginTop: 24,
-    paddingHorizontal: 24,
-  },
-  sectionTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#1e293b',
-    marginBottom: 16,
-    letterSpacing: -0.3,
-  },
-  activityHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
+  streakNumber: { fontSize: 16, fontWeight: '700', color: '#ffffff' },
+  streakText: { fontSize: 11, color: '#ffffff', opacity: 0.95, fontWeight: '500' },
+  section: { marginTop: 24, paddingHorizontal: 24 },
+  sectionTitle: { fontSize: 22, fontWeight: '700', color: '#1e293b', marginBottom: 16, letterSpacing: -0.3 },
+  activityHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   trackCard: {
     backgroundColor: '#ffffff',
     borderRadius: 16,
@@ -687,27 +596,10 @@ const styles = StyleSheet.create({
     borderWidth: 0.5,
     borderColor: 'rgba(0,0,0,0.05)',
   },
-  trackHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 12,
-  },
-  trackInfo: {
-    flex: 1,
-  },
-  trackTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#1e293b',
-    letterSpacing: -0.2,
-    marginBottom: 2,
-  },
-  trackSubtitle: {
-    fontSize: 13,
-    color: '#64748b',
-    fontWeight: '500',
-  },
+  trackHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
+  trackInfo: { flex: 1 },
+  trackTitle: { fontSize: 17, fontWeight: '700', color: '#1e293b', letterSpacing: -0.2, marginBottom: 2 },
+  trackSubtitle: { fontSize: 13, color: '#64748b', fontWeight: '500' },
   playButton: {
     width: 36,
     height: 36,
@@ -737,29 +629,11 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4,
   },
-  browseTracksText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#3b82f6',
-  },
-  progressContainer: {
-    gap: 8,
-  },
-  progressBar: {
-    height: 8,
-    backgroundColor: '#e2e8f0',
-    borderRadius: 4,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: 4,
-  },
-  progressText: {
-    fontSize: 15,
-    color: '#64748b',
-    fontWeight: '500',
-  },
+  browseTracksText: { fontSize: 16, fontWeight: '600', color: '#3b82f6' },
+  progressContainer: { gap: 8 },
+  progressBar: { height: 8, backgroundColor: '#e2e8f0', borderRadius: 4, overflow: 'hidden' },
+  progressFill: { height: '100%', borderRadius: 4 },
+  progressText: { fontSize: 15, color: '#64748b', fontWeight: '500' },
   activityGraphCard: {
     backgroundColor: '#ffffff',
     borderRadius: 16,
@@ -774,155 +648,23 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     maxWidth: '100%',
   },
-  heatmapContainer: {
-    overflow: 'hidden',
-    maxWidth: '100%',
-    contain: 'layout',
-  },
-  sliderContainer: {
-    alignItems: 'center',
-    marginBottom: 16,
-    paddingHorizontal: 8,
-  },
-  sliderLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1e293b',
-    marginBottom: 12,
-  },
-  sliderWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 12,
-    width: '100%',
-    maxWidth: 280,
-  },
-  sliderText: {
-    fontSize: 12,
-    color: '#64748b',
-    fontWeight: '500',
-  },
-  customSlider: {
-    flex: 1,
-    height: 20,
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  sliderTrack: {
-    height: 4,
-    backgroundColor: '#e2e8f0',
-    borderRadius: 2,
-    position: 'relative',
-  },
-  sliderThumb: {
-    position: 'absolute',
-    top: -6,
-    width: 16,
-    height: 16,
-    backgroundColor: '#3b82f6',
-    borderRadius: 8,
-    shadowColor: '#3b82f6',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  sliderTouchArea: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-  },
-  swipeHint: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  swipeHintText: {
-    fontSize: 12,
-    color: '#64748b',
-    fontStyle: 'italic',
-  },
-  todayButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: '#3b82f6',
-  },
-  todayButtonText: {
-    fontSize: 12,
-    color: '#ffffff',
-    fontWeight: '600',
-  },
-  contributionGraph: {
-    alignItems: 'flex-start',
-    maxWidth: '100%',
-    overflow: 'hidden',
-  },
-  monthLabelsContainer: {
-    position: 'relative',
-    width: 300,
-    maxWidth: '100%',
-    height: 20,
-    marginBottom: 8,
-    overflow: 'hidden',
-  },
-  monthLabel: {
-    position: 'absolute',
-    fontSize: 11,
-    color: '#64748b',
-    fontWeight: '500',
-  },
-  graphGrid: {
-    flexDirection: 'row',
-    gap: 2,
-    marginBottom: 12,
-    maxWidth: 300,
-    overflow: 'hidden',
-    alignSelf: 'flex-start',
-  },
-  weekColumn: {
-    flexDirection: 'column',
-    gap: 2,
-    minWidth: 12,
-  },
-  daySquare: {
-    width: 12,
-    height: 12,
-    borderRadius: 2,
-  },
-  graphLegend: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    alignSelf: 'flex-start',
-  },
-  legendText: {
-    fontSize: 11,
-    color: '#64748b',
-    fontWeight: '500',
-  },
-  legendSquares: {
-    flexDirection: 'row',
-    gap: 2,
-  },
-  legendSquare: {
-    width: 10,
-    height: 10,
-    borderRadius: 1,
-  },
-  activitySummary: {
-    marginTop: 12,
-    alignItems: 'center',
-  },
-  activitySummaryText: {
-    fontSize: 12,
-    color: '#64748b',
-    fontStyle: 'italic',
-  },
+  heatmapContainer: { overflow: 'hidden', maxWidth: '100%' },
+  swipeHint: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  swipeHintText: { fontSize: 12, color: '#64748b', fontStyle: 'italic' },
+  todayButton: { paddingHorizontal: 16, paddingVertical: 6, borderRadius: 8, backgroundColor: '#3b82f6' },
+  todayButtonText: { fontSize: 12, color: '#ffffff', fontWeight: '600' },
+  contributionGraph: { alignItems: 'flex-start', maxWidth: '100%', overflow: 'hidden' },
+  monthLabelsContainer: { position: 'relative', width: 300, maxWidth: '100%', height: 20, marginBottom: 8, overflow: 'hidden' },
+  monthLabel: { position: 'absolute', fontSize: 11, color: '#64748b', fontWeight: '500' },
+  graphGrid: { flexDirection: 'row', gap: 2, marginBottom: 12, maxWidth: 300, overflow: 'hidden', alignSelf: 'flex-start' },
+  weekColumn: { flexDirection: 'column', gap: 2, minWidth: 12 },
+  daySquare: { width: 12, height: 12, borderRadius: 2 },
+  graphLegend: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start' },
+  legendText: { fontSize: 11, color: '#64748b', fontWeight: '500' },
+  legendSquares: { flexDirection: 'row', gap: 2 },
+  legendSquare: { width: 10, height: 10, borderRadius: 1 },
+  activitySummary: { marginTop: 12, alignItems: 'center' },
+  activitySummaryText: { fontSize: 12, color: '#64748b', fontStyle: 'italic' },
   noLearningContainer: {
     backgroundColor: '#f8fafc',
     borderRadius: 12,
@@ -932,16 +674,6 @@ const styles = StyleSheet.create({
     borderColor: '#e2e8f0',
     marginBottom: 16,
   },
-  noLearningText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#64748b',
-    marginBottom: 8,
-  },
-  noLearningSubtext: {
-    fontSize: 14,
-    color: '#9ca3af',
-    textAlign: 'center',
-    lineHeight: 20,
-  },
+  noLearningText: { fontSize: 16, fontWeight: '600', color: '#64748b', marginBottom: 8 },
+  noLearningSubtext: { fontSize: 14, color: '#9ca3af', textAlign: 'center', lineHeight: 20 },
 });
