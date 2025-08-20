@@ -114,7 +114,6 @@ export default function HomeScreen() {
   const [heatmapData, setHeatmapData] = useState<{ weeks: any[], monthLabels: any[] }>({ weeks: [], monthLabels: [] });
   const [currentViewDate, setCurrentViewDate] = useState(new Date());
   const [streakData, setStreakData] = useState({ completedDays: 0, currentStreak: 12 });
-  const [sliderPosition, setSliderPosition] = useState(50);
   
   // Animation values for sliding
   const translateX = useSharedValue(0);
@@ -162,7 +161,7 @@ export default function HomeScreen() {
     };
     
     loadUserStreakData();
-  }, [currentViewDate]);
+  }, [currentViewDate, streakData]);
 
   // Navigation functions
   const navigateToTimeOffset = (monthsOffset: number) => {
@@ -191,20 +190,6 @@ export default function HomeScreen() {
     setTimeout(() => {
       setIsTransitioning(false);
     }, 300);
-  };
-
-  // Handle slider press
-  const handleSliderPress = (event) => {
-    const { locationX } = event.nativeEvent;
-    const sliderWidth = 200; // Approximate slider width
-    const newPosition = Math.max(0, Math.min(100, (locationX / sliderWidth) * 100));
-    setSliderPosition(newPosition);
-    
-    // Calculate months offset based on position
-    const monthsOffset = Math.round((newPosition - 50) / 10); // -5 to +5 months
-    const newDate = new Date();
-    newDate.setMonth(newDate.getMonth() + monthsOffset);
-    setCurrentViewDate(newDate);
   };
 
   // Pan gesture handler for natural sliding
@@ -533,91 +518,75 @@ export default function HomeScreen() {
             </View>
           </View>
           
-          {/* Navigation Controls */}
-          <View style={styles.sliderContainer}>
-            <Text style={styles.sliderLabel}>Navigate Timeline</Text>
-            <View style={styles.sliderWrapper}>
-              <Text style={styles.sliderText}>Past</Text>
-              <View style={styles.customSlider}>
-                <View style={styles.sliderTrack}>
-                  <View 
-                    style={[
-                      styles.sliderThumb,
-                      { left: `${sliderPosition}%` }
-                    ]}
-                  />
-                </View>
-                <TouchableOpacity
-                  style={styles.sliderTouchArea}
-                  onPress={handleSliderPress}
-                />
-              </View>
-              <Text style={styles.sliderText}>Future</Text>
-            </View>
+          {/* Swipe Hint */}
+          <View style={styles.swipeHint}>
+            <Text style={styles.swipeHintText}>← Swipe to navigate through time →</Text>
             <TouchableOpacity style={styles.todayButton} onPress={resetToToday}>
               <Text style={styles.todayButtonText}>Today</Text>
             </TouchableOpacity>
           </View>
           
           <View style={styles.activityGraphCard}>
-            <View style={styles.heatmapContainer}>
-            <View style={styles.contributionGraph}>
-              {/* Month Labels */}
-              <View style={styles.monthLabelsContainer}>
-                {heatmapData.monthLabels.map((month, index) => (
-                  <Text 
-                    key={index} 
-                    style={[
-                      styles.monthLabel,
-                      { left: Math.min(month.weekIndex * 14, 280) } // Constrain label position
-                    ]}
-                  >
-                    {month.name}
-                  </Text>
-                ))}
-              </View>
-              
-              {/* Heatmap Grid */}
-              <View style={styles.graphGrid}>
-                {heatmapData.weeks.map((week, weekIndex) => (
-                  <View key={weekIndex} style={styles.weekColumn}>
-                    {week.map((day, dayIndex) => (
-                      <View
-                        key={dayIndex}
+            <PanGestureHandler onGestureEvent={panGestureHandler}>
+              <Animated.View style={[styles.heatmapContainer, animatedStyle]}>
+                <View style={styles.contributionGraph}>
+                  {/* Month Labels with Anti-Overlap Logic */}
+                  <View style={styles.monthLabelsContainer}>
+                    {heatmapData.monthLabels.map((month, index) => (
+                      <Text 
+                        key={`${month.month}-${index}`}
                         style={[
-                          styles.daySquare,
-                          { 
-                            backgroundColor: getDayColor(day.activity),
-                            opacity: day.isInRange ? 1 : 0.3,
-                            borderWidth: day.isToday ? 1 : 0,
-                            borderColor: day.isToday ? '#3b82f6' : 'transparent'
-                          }
+                          styles.monthLabel,
+                          { left: Math.min(month.weekIndex * 14, 260) }
                         ]}
-                      />
+                      >
+                        {month.name}
+                      </Text>
                     ))}
                   </View>
-                ))}
-              </View>
-              
-              {/* Legend */}
-              <View style={styles.graphLegend}>
-                <Text style={styles.legendText}>Less</Text>
-                <View style={styles.legendSquares}>
-                  <View style={[styles.legendSquare, { backgroundColor: '#ebedf0' }]} />
-                  <View style={[styles.legendSquare, { backgroundColor: '#c6e48b' }]} />
-                  <View style={[styles.legendSquare, { backgroundColor: '#7bc96f' }]} />
-                  <View style={[styles.legendSquare, { backgroundColor: '#239a3b' }]} />
-                  <View style={[styles.legendSquare, { backgroundColor: '#196127' }]} />
+                  
+                  {/* Heatmap Grid */}
+                  <View style={styles.graphGrid}>
+                    {heatmapData.weeks.map((week, weekIndex) => (
+                      <View key={weekIndex} style={styles.weekColumn}>
+                        {week.map((day, dayIndex) => (
+                          <View
+                            key={dayIndex}
+                            style={[
+                              styles.daySquare,
+                              { 
+                                backgroundColor: getDayColor(day.activity),
+                                opacity: day.isInRange ? 1 : 0.3,
+                                borderWidth: day.isToday ? 2 : 0,
+                                borderColor: day.isToday ? '#3b82f6' : 'transparent'
+                              }
+                            ]}
+                          />
+                        ))}
+                      </View>
+                    ))}
+                  </View>
+                  
+                  {/* Legend */}
+                  <View style={styles.graphLegend}>
+                    <Text style={styles.legendText}>Less</Text>
+                    <View style={styles.legendSquares}>
+                      <View style={[styles.legendSquare, { backgroundColor: '#ebedf0' }]} />
+                      <View style={[styles.legendSquare, { backgroundColor: '#c6e48b' }]} />
+                      <View style={[styles.legendSquare, { backgroundColor: '#7bc96f' }]} />
+                      <View style={[styles.legendSquare, { backgroundColor: '#239a3b' }]} />
+                      <View style={[styles.legendSquare, { backgroundColor: '#196127' }]} />
+                    </View>
+                    <Text style={styles.legendText}>More</Text>
+                  </View>
                 </View>
-                <Text style={styles.legendText}>More</Text>
-              </View>
-            </View>
-            </View>
+              </Animated.View>
+            </PanGestureHandler>
             
             {/* Activity Summary */}
             <View style={styles.activitySummary}>
               <Text style={styles.activitySummaryText}>
-                6-month view • Current streak: {streakData.currentStreak} days
+                6-month view • Current streak: {streakData.currentStreak} days • Swipe to navigate
               </Text>
             </View>
           </View>
@@ -862,6 +831,17 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+  },
+  swipeHint: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  swipeHintText: {
+    fontSize: 12,
+    color: '#64748b',
+    fontStyle: 'italic',
   },
   todayButton: {
     paddingHorizontal: 16,
