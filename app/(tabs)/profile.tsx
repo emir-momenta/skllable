@@ -1,4 +1,3 @@
-import React, { useState } from 'react';
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -287,8 +286,12 @@ export default function ProfileScreen() {
             <User size={32} color="#ffffff" />
           </View>
           <View style={styles.profileInfo}>
+            <>
             {profile?.accountType === 'business' && profile?.company && (
               <Text style={styles.companyName}>{profile.company}</Text>
+            )}
+            {isEditing ? (
+              <TextInput
                 style={styles.nameInput}
                 value={tempProfile.name}
                 onChangeText={(text) => setTempProfile({...tempProfile, name: text})}
@@ -297,6 +300,7 @@ export default function ProfileScreen() {
             ) : (
               <Text style={styles.profileName}>{profile.name}</Text>
             )}
+            </>
             
             <View style={styles.profileMeta}>
               <Mail size={14} color="#64748b" />

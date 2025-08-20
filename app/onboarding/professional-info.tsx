@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { ArrowLeft, ArrowRight, User, Briefcase, Building2, ChevronDown } from 'lucide-react-native';
+import { ArrowLeft, ArrowRight, User, Briefcase, Building2, ChevronDown, Search, X } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const PROFESSIONAL_ROLES = [
