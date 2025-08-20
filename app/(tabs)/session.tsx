@@ -20,6 +20,7 @@ export default function SessionScreen() {
     correct: 0,
     total: 0,
   });
+  const [finalSessionSummary, setFinalSessionSummary] = useState<any>(null);
 
   const tracks = [
     {
@@ -274,6 +275,7 @@ export default function SessionScreen() {
         };
         
         console.log('Session completed with data:', sessionData);
+        setFinalSessionSummary(sessionData);
       } catch (error) {
         console.error('Error updating streak data:', error);
       }
@@ -298,6 +300,7 @@ export default function SessionScreen() {
       correct: 0,
       total: 0,
     });
+    setFinalSessionSummary(null);
   };
 
   const selectedTrackData = tracks.find(t => t.id === selectedTrack);
@@ -350,10 +353,10 @@ export default function SessionScreen() {
               </View>
             )}
             {/* Show any badges earned */}
-            {finalSessionData?.badgesEarned && finalSessionData.badgesEarned.length > 0 && (
+            {finalSessionSummary?.badgesEarned && finalSessionSummary.badgesEarned.length > 0 && (
               <View style={styles.badgesEarned}>
                 <Text style={styles.badgesEarnedTitle}>🏆 Badges Earned!</Text>
-                {finalSessionData.badgesEarned.map((badge, index) => (
+                {finalSessionSummary.badgesEarned.map((badge, index) => (
                   <Text key={index} style={styles.badgeEarnedText}>
                     ✨ {badge}
                   </Text>
