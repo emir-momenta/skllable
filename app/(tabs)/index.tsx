@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, FlatList } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Award, ChevronRight, Play } from 'lucide-react-native';
+import { Award, ChevronRight, Play, ChevronLeft } from 'lucide-react-native';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -9,38 +9,31 @@ const { width: screenWidth } = Dimensions.get('window');
 
 /**
  * GitHub-style Activity Heatmap Generator
- * Creates a predetermined activity pattern from January through August,
- * then dynamically extends based on user streak completions
+ * Creates a 6-month sliding view centered around current date
+ * All activity data comes from user streaks, no predetermined data
  */
 
-// Predetermined activity pattern for each month (Jan-Aug)
-// Pattern represents realistic learning behavior with varying intensity
-const PREDETERMINED_MONTHLY_PATTERNS = {
-  0: [2, 1, 3, 0, 2, 4, 1, 2, 0, 3, 1, 2, 4, 0, 1, 3, 2, 1, 0, 2, 3, 1, 4, 2, 0, 1, 3, 2, 1, 0, 2], // January - New year motivation
-  1: [1, 2, 0, 3, 1, 2, 0, 1, 3, 2, 1, 0, 2, 3, 1, 0, 2, 1, 3, 0, 1, 2, 0, 3, 1, 2, 0, 1], // February - Consistent but lower
-  2: [3, 2, 4, 1, 3, 2, 0, 4, 1, 3, 2, 1, 4, 0, 3, 2, 1, 4, 3, 2, 0, 1, 4, 3, 2, 1, 0, 3, 4, 2, 1], // March - Spring motivation boost
-  3: [2, 3, 1, 4, 2, 0, 3, 1, 2, 4, 0, 3, 1, 2, 0, 4, 3, 1, 2, 0, 3, 4, 1, 2, 0, 3, 1, 4, 2, 0], // April - Steady progress
-  4: [4, 3, 2, 1, 4, 3, 0, 2, 4, 1, 3, 2, 0, 4, 1, 3, 2, 4, 0, 1, 3, 2, 4, 1, 0, 3, 2, 4, 1, 3, 0], // May - High activity month
-  5: [1, 2, 0, 3, 1, 0, 2, 1, 3, 0, 2, 1, 0, 3, 2, 1, 0, 2, 3, 1, 0, 2, 1, 3, 0, 1, 2, 0, 3, 1], // June - Summer slowdown
-  6: [0, 1, 2, 0, 1, 0, 2, 1, 0, 2, 1, 0, 1, 2, 0, 1, 0, 2, 1, 0, 1, 2, 0, 1, 0, 2, 1, 0, 1, 2, 0], // July - Vacation period
-  7: [1, 2, 3, 1, 2, 0, 3, 2, 1, 3, 2, 0, 1, 3, 2, 1, 0, 2, 3, 1, 2, 0, 3, 1, 2, 3, 0, 1, 2, 3, 1], // August - Back to routine
-};
-
-// Generate the base activity calendar (January through August)
-const generateBaseActivityCalendar = () => {
-  const currentYear = new Date().getFullYear();
+// Generate 6-month activity calendar (3 months back, current month, 2 months forward)
+const generateActivityCalendar = (centerDate, userStreakData = {}) => {
   const weeks = [];
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   
-  // Start from January 1st of current year
-  const startDate = new Date(currentYear, 0, 1); // January 1st
+  // Calculate start date (3 months back from center date)
+  const startDate = new Date(centerDate);
+  startDate.setMonth(startDate.getMonth() - 3);
+  startDate.setDate(1); // Start from first day of the month
   
-  // Find the first Sunday on or before January 1st to align with week grid
+  // Calculate end date (2 months forward from center date)
+  const endDate = new Date(centerDate);
+  endDate.setMonth(endDate.getMonth() + 2);
+  endDate.setDate(new Date(endDate.getFullYear(), endDate.getMonth() + 1, 0).getDate()); // Last day of month
+  
+  // Find the first Sunday on or before start date to align with week grid
   const firstSunday = new Date(startDate);
   firstSunday.setDate(startDate.getDate() - startDate.getDay());
   
-  // Generate weeks from January through August (approximately 35 weeks)
+  // Generate weeks for the 6-month period
   let currentDate = new Date(firstSunday);
-  const endDate = new Date(currentYear, 7, 31); // August 31st
   
   while (currentDate <= endDate) {
     const weekData = [];
@@ -52,22 +45,18 @@ const generateBaseActivityCalendar = () => {
       
       let activity = 0;
       
-      // Only assign activity if the date is within our target range and not in the future
-      if (dayDate >= startDate && dayDate <= endDate && dayDate <= new Date()) {
-        const month = dayDate.getMonth();
-        const dayOfMonth = dayDate.getDate() - 1; // Convert to 0-based index
-        
-        // Get predetermined activity from our pattern
-        if (PREDETERMINED_MONTHLY_PATTERNS[month] && PREDETERMINED_MONTHLY_PATTERNS[month][dayOfMonth] !== undefined) {
-          activity = PREDETERMINED_MONTHLY_PATTERNS[month][dayOfMonth];
-        }
+      // Check if this date has user activity from streaks
+      const dateKey = dayDate.toDateString();
+      if (userStreakData[dateKey]) {
+        activity = Math.min(4, userStreakData[dateKey]); // Cap at level 4
       }
       
       weekData.push({
         date: new Date(dayDate),
         activity: activity,
-        isCurrentMonth: dayDate.getMonth() >= 0 && dayDate.getMonth() <= 7, // Jan-Aug
-        isPredetermined: true
+        isInRange: dayDate >= startDate && dayDate <= endDate,
+        isFuture: dayDate > new Date(),
+        isToday: dayDate.toDateString() === new Date().toDateString()
       });
     }
     
@@ -75,70 +64,17 @@ const generateBaseActivityCalendar = () => {
     currentDate.setDate(currentDate.getDate() + 7); // Move to next week
   }
   
-  return weeks;
-};
-
-// Extend the calendar with dynamic streak-based activity
-const extendCalendarWithStreaks = (baseWeeks, streakData) => {
-  const extendedWeeks = [...baseWeeks];
-  const lastWeek = extendedWeeks[extendedWeeks.length - 1];
-  const lastDate = lastWeek[lastWeek.length - 1].date;
-  
-  // If user has completed streaks beyond August, add those days
-  if (streakData && streakData.completedDays > 0) {
-    let currentDate = new Date(lastDate);
-    currentDate.setDate(currentDate.getDate() + 1);
-    
-    let remainingStreakDays = streakData.completedDays;
-    
-    while (remainingStreakDays > 0) {
-      // Check if we need to start a new week
-      const lastWeekInExtended = extendedWeeks[extendedWeeks.length - 1];
-      
-      if (lastWeekInExtended.length < 7) {
-        // Add to current week
-        const activityLevel = Math.min(4, Math.floor(remainingStreakDays / 5) + 1); // Higher activity for more streaks
-        lastWeekInExtended.push({
-          date: new Date(currentDate),
-          activity: activityLevel,
-          isCurrentMonth: false,
-          isPredetermined: false,
-          isStreakDay: true
-        });
-      } else {
-        // Start new week
-        const activityLevel = Math.min(4, Math.floor(remainingStreakDays / 5) + 1);
-        extendedWeeks.push([{
-          date: new Date(currentDate),
-          activity: activityLevel,
-          isCurrentMonth: false,
-          isPredetermined: false,
-          isStreakDay: true
-        }]);
-      }
-      
-      currentDate.setDate(currentDate.getDate() + 1);
-      remainingStreakDays--;
-    }
-  }
-  
-  return extendedWeeks;
-};
-
-// Generate month labels for the heatmap
-const generateMonthLabels = (weeks) => {
-  const months = [];
-  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  
+  // Generate month labels
+  const monthLabels = [];
   let currentMonth = -1;
   let weekIndex = 0;
   
   for (const week of weeks) {
-    const firstDayOfWeek = week.find(day => day.activity >= 0 || day.isCurrentMonth);
-    if (firstDayOfWeek) {
-      const month = firstDayOfWeek.date.getMonth();
+    const firstDayInRange = week.find(day => day.isInRange);
+    if (firstDayInRange) {
+      const month = firstDayInRange.date.getMonth();
       if (month !== currentMonth) {
-        months.push({
+        monthLabels.push({
           name: monthNames[month],
           weekIndex: weekIndex,
           month: month
@@ -149,7 +85,7 @@ const generateMonthLabels = (weeks) => {
     weekIndex++;
   }
   
-  return months;
+  return { weeks, monthLabels };
 };
 
 // Get color for activity level
@@ -168,40 +104,68 @@ export default function HomeScreen() {
   const [userData, setUserData] = useState<any>(null);
   const [greeting, setGreeting] = useState('Good morning!');
   const [ongoingLearning, setOngoingLearning] = useState<any[]>([]);
-  const [activityData, setActivityData] = useState<any[]>([]);
-  const [monthLabels, setMonthLabels] = useState<any[]>([]);
+  const [heatmapData, setHeatmapData] = useState<{ weeks: any[], monthLabels: any[] }>({ weeks: [], monthLabels: [] });
+  const [currentViewDate, setCurrentViewDate] = useState(new Date());
   const [streakData, setStreakData] = useState({ completedDays: 0, currentStreak: 12 });
 
-  // Generate activity data on component mount and when streak data changes
+  // Generate heatmap data when view date or streak data changes
   useEffect(() => {
-    const baseCalendar = generateBaseActivityCalendar();
-    const extendedCalendar = extendCalendarWithStreaks(baseCalendar, streakData);
-    const months = generateMonthLabels(extendedCalendar);
+    const loadUserStreakData = async () => {
+      try {
+        // Load actual user streak data from AsyncStorage
+        const userStreakData = {};
+        const addedTracksData = await AsyncStorage.getItem('addedTracks');
+        
+        if (addedTracksData) {
+          const addedTracks = JSON.parse(addedTracksData);
+          
+          // For each track, get the streak data and map to dates
+          for (const trackId of addedTracks) {
+            const streakStr = await AsyncStorage.getItem(`streak_${trackId}`);
+            const streak = streakStr ? parseInt(streakStr) : 0;
+            
+            // Add activity for each day in the streak (working backwards from today)
+            for (let i = 0; i < streak; i++) {
+              const date = new Date();
+              date.setDate(date.getDate() - i);
+              const dateKey = date.toDateString();
+              
+              // Increment activity level for this date (multiple tracks can contribute)
+              userStreakData[dateKey] = (userStreakData[dateKey] || 0) + 1;
+            }
+          }
+        }
+        
+        const calendarData = generateActivityCalendar(currentViewDate, userStreakData);
+        setHeatmapData(calendarData);
+      } catch (error) {
+        console.error('Error loading streak data for heatmap:', error);
+        // Fallback to empty calendar
+        const calendarData = generateActivityCalendar(currentViewDate, {});
+        setHeatmapData(calendarData);
+      }
+    };
     
-    setActivityData(extendedCalendar);
-    setMonthLabels(months);
-  }, [streakData]);
+    loadUserStreakData();
+  }, [currentViewDate, streakData]);
 
   // Load streak data from AsyncStorage
   useEffect(() => {
     const loadStreakData = async () => {
       try {
-        // Get current streak from all tracks
         const addedTracksData = await AsyncStorage.getItem('addedTracks');
         if (addedTracksData) {
           const addedTracks = JSON.parse(addedTracksData);
-          let totalCompletedDays = 0;
           let maxStreak = 0;
           
           for (const trackId of addedTracks) {
             const streakStr = await AsyncStorage.getItem(`streak_${trackId}`);
             const streak = streakStr ? parseInt(streakStr) : 0;
-            totalCompletedDays += streak;
             maxStreak = Math.max(maxStreak, streak);
           }
           
           setStreakData({
-            completedDays: Math.max(0, totalCompletedDays - 31), // Subtract August days (31) to get extension days
+            completedDays: 0, // Not used anymore
             currentStreak: maxStreak
           });
         }
@@ -342,6 +306,25 @@ export default function HomeScreen() {
     loadOngoingLearning();
     
     // Set up interval to refresh data periodically
+  // Navigate to previous 6-month period
+  const navigateToPrevious = () => {
+    const newDate = new Date(currentViewDate);
+    newDate.setMonth(newDate.getMonth() - 6);
+    setCurrentViewDate(newDate);
+  };
+
+  // Navigate to next 6-month period
+  const navigateToNext = () => {
+    const newDate = new Date(currentViewDate);
+    newDate.setMonth(newDate.getMonth() + 6);
+    setCurrentViewDate(newDate);
+  };
+
+  // Reset to current date
+  const resetToToday = () => {
+    setCurrentViewDate(new Date());
+  };
+
     const interval = setInterval(loadOngoingLearning, 2000);
     
     return () => clearInterval(interval);
@@ -434,26 +417,44 @@ export default function HomeScreen() {
               <Text style={styles.streakText}>day streak</Text>
             </View>
           </View>
+          
+          {/* Navigation Controls */}
+          <View style={styles.heatmapControls}>
+            <TouchableOpacity style={styles.navButton} onPress={navigateToPrevious}>
+              <ChevronLeft size={16} color="#64748b" />
+              <Text style={styles.navButtonText}>Previous</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity style={styles.todayButton} onPress={resetToToday}>
+              <Text style={styles.todayButtonText}>Today</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity style={styles.navButton} onPress={navigateToNext}>
+              <Text style={styles.navButtonText}>Next</Text>
+              <ChevronRight size={16} color="#64748b" />
+            </TouchableOpacity>
+          </View>
+          
           <View style={styles.activityGraphCard}>
             <View style={styles.contributionGraph}>
-              <View style={styles.monthsRow}>
-                {monthLabels.map((month, index) => (
+              {/* Month Labels */}
+              <View style={styles.monthLabelsContainer}>
+                {heatmapData.monthLabels.map((month, index) => (
                   <Text 
                     key={index} 
                     style={[
                       styles.monthLabel,
-                      { 
-                        left: (month.weekIndex * (Math.floor((screenWidth - 88) / monthLabels.length) + 3)),
-                        position: 'absolute'
-                      }
+                      { left: month.weekIndex * 14 } // 12px square + 2px gap
                     ]}
                   >
                     {month.name}
                   </Text>
                 ))}
               </View>
+              
+              {/* Heatmap Grid */}
               <View style={styles.graphGrid}>
-                {activityData.map((week, weekIndex) => (
+                {heatmapData.weeks.map((week, weekIndex) => (
                   <View key={weekIndex} style={styles.weekColumn}>
                     {week.map((day, dayIndex) => (
                       <View
@@ -462,7 +463,9 @@ export default function HomeScreen() {
                           styles.daySquare,
                           { 
                             backgroundColor: getDayColor(day.activity),
-                            opacity: day.isCurrentMonth || day.isStreakDay ? 1 : 0.3
+                            opacity: day.isInRange ? 1 : 0.3,
+                            borderWidth: day.isToday ? 1 : 0,
+                            borderColor: day.isToday ? '#3b82f6' : 'transparent'
                           }
                         ]}
                       />
@@ -470,6 +473,8 @@ export default function HomeScreen() {
                   </View>
                 ))}
               </View>
+              
+              {/* Legend */}
               <View style={styles.graphLegend}>
                 <Text style={styles.legendText}>Less</Text>
                 <View style={styles.legendSquares}>
@@ -486,7 +491,7 @@ export default function HomeScreen() {
             {/* Activity Summary */}
             <View style={styles.activitySummary}>
               <Text style={styles.activitySummaryText}>
-                {streakData.completedDays > 0 ? `${streakData.completedDays} days beyond August` : 'Building consistency since January'}
+                6-month view • Current streak: {streakData.currentStreak} days
               </Text>
             </View>
           </View>
@@ -669,34 +674,69 @@ const styles = StyleSheet.create({
     borderWidth: 0.5,
     borderColor: 'rgba(0,0,0,0.05)',
   },
-  contributionGraph: {
+  heatmapControls: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 16,
+    paddingHorizontal: 4,
   },
-  monthsRow: {
+  navButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  navButtonText: {
+    fontSize: 12,
+    color: '#64748b',
+    fontWeight: '500',
+  },
+  todayButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: '#3b82f6',
+  },
+  todayButtonText: {
+    fontSize: 12,
+    color: '#ffffff',
+    fontWeight: '600',
+  },
+  contributionGraph: {
+    alignItems: 'flex-start',
+  },
+  monthLabelsContainer: {
     position: 'relative',
-    width: screenWidth - 88,
+    width: '100%',
     height: 20,
     marginBottom: 8,
   },
   monthLabel: {
+    position: 'absolute',
     fontSize: 11,
     color: '#64748b',
     fontWeight: '500',
   },
   graphGrid: {
     flexDirection: 'row',
-    gap: 3,
+    gap: 2,
     marginBottom: 12,
-    width: screenWidth - 88,
-    justifyContent: 'space-between',
+    flexWrap: 'nowrap',
+    overflow: 'hidden',
   },
   weekColumn: {
     flexDirection: 'column',
-    gap: 3,
+    gap: 2,
   },
   daySquare: {
-    width: Math.floor((screenWidth - 88 - (25 * 3)) / 26),
-    height: Math.floor((screenWidth - 88 - (25 * 3)) / 26),
+    width: 12,
+    height: 12,
     borderRadius: 2,
   },
   graphLegend: {
