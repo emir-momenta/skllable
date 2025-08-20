@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Play, Pause, Clock, Target, CircleCheck as CheckCircle, Brain, ArrowRight } from 'lucide-react-native';
+import { Play, Pause, Clock, Target, CircleCheck as CheckCircle, Brain, ArrowRight, Minus } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function SessionScreen() {
   const [selectedTrack, setSelectedTrack] = useState('data-analysis');
+  const [addedTracks, setAddedTracks] = useState<string[]>([]);
   const [isActive, setIsActive] = useState(false);
   const [time, setTime] = useState(0);
   const [sessionStarted, setSessionStarted] = useState(false);
@@ -135,6 +136,47 @@ export default function SessionScreen() {
       ]
     },
   ];
+
+  // Load added tracks on component mount
+  useEffect(() => {
+    const loadAddedTracks = async () => {
+      try {
+        const stored = await AsyncStorage.getItem('addedTracks');
+        if (stored) {
+          const tracks = JSON.parse(stored);
+          setAddedTracks(tracks);
+          // Set first track as selected if none selected
+          if (tracks.length > 0 && !tracks.includes(selectedTrack)) {
+            setSelectedTrack(tracks[0]);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading added tracks:', error);
+      }
+    };
+    loadAddedTracks();
+  }, []);
+
+  const handleRemoveTrack = async (trackId: string) => {
+    try {
+      const updatedTracks = addedTracks.filter(id => id !== trackId);
+      setAddedTracks(updatedTracks);
+      await AsyncStorage.setItem('addedTracks', JSON.stringify(updatedTracks));
+      
+      // Remove from track activity
+      const existingActivity = await AsyncStorage.getItem('trackActivity');
+      const currentActivity = existingActivity ? JSON.parse(existingActivity) : {};
+      delete currentActivity[trackId];
+      await AsyncStorage.setItem('trackActivity', JSON.stringify(currentActivity));
+      
+      // Update selected track if removed
+      if (selectedTrack === trackId && updatedTracks.length > 0) {
+        setSelectedTrack(updatedTracks[0]);
+      }
+    } catch (error) {
+      console.error('Error removing track:', error);
+    }
+  };
 
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null;
@@ -488,7 +530,15 @@ export default function SessionScreen() {
       {!sessionStarted && (
         <View style={styles.trackSelector}>
           <Text style={styles.sectionTitle}>Select Track</Text>
-          {tracks.map((track) => (
+          {addedTracks.length === 0 ? (
+            <View style={styles.noTracksContainer}>
+              <Text style={styles.noTracksText}>No tracks added yet</Text>
+              <Text style={styles.noTracksSubtext}>
+                Go to the Tracks tab and tap the "+" icon to add learning tracks
+              </Text>
+            </View>
+          ) : (
+            tracks.filter(track => addedTracks.includes(track.id)).map((track) => (
             <TouchableOpacity
               key={track.id}
               style={[
@@ -506,14 +556,22 @@ export default function SessionScreen() {
                 {selectedTrack === track.id && (
                   <CheckCircle size={20} color={track.color} />
                 )}
+                <TouchableOpacity
+                  style={styles.removeTrackButton}
+                  onPress={() => handleRemoveTrack(track.id)}
+                >
+                  <Minus size={16} color="#ef4444" />
+                </TouchableOpacity>
               </View>
             </TouchableOpacity>
-          ))}
+            ))
+          )}
         </View>
       )}
 
       <View style={styles.controls}>
         {!sessionStarted ? (
+          addedTracks.length > 0 ? (
           <TouchableOpacity
             style={[styles.primaryButton, { backgroundColor: selectedTrackData?.color }]}
             onPress={startSession}
@@ -521,6 +579,14 @@ export default function SessionScreen() {
             <Play size={24} color="#ffffff" />
             <Text style={styles.primaryButtonText}>Start Quiz & Timer</Text>
           </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={[styles.primaryButton, { backgroundColor: '#9ca3af' }]}
+              disabled={true}
+            >
+              <Text style={styles.primaryButtonText}>Add tracks to start learning</Text>
+            </TouchableOpacity>
+          )
         ) : null}
       </View>
 
@@ -616,6 +682,35 @@ const styles = StyleSheet.create({
     color: '#64748b',
     textAlign: 'center',
     lineHeight: 20,
+  },
+  noTracksContainer: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 12,
+    padding: 20,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  noTracksText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#64748b',
+    marginBottom: 8,
+  },
+  noTracksSubtext: {
+    fontSize: 14,
+    color: '#9ca3af',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  removeTrackButton: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#fef2f2',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
   },
   completedContainer: {
     flex: 1,

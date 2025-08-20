@@ -1,13 +1,72 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ChartBar as BarChart3, UserCheck, Users, Award, Calendar, Clock, TrendingUp, Search, Filter, X } from 'lucide-react-native';
+import { ChartBar as BarChart3, UserCheck, Users, Award, Calendar, Clock, TrendingUp, Search, Filter, X, Plus, Minus } from 'lucide-react-native';
 import { router } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function TracksScreen() {
   const [selectedTrack, setSelectedTrack] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState<string | null>(null);
+  const [addedTracks, setAddedTracks] = useState<string[]>([]);
+
+  // Load added tracks on component mount
+  React.useEffect(() => {
+    const loadAddedTracks = async () => {
+      try {
+        const stored = await AsyncStorage.getItem('addedTracks');
+        if (stored) {
+          setAddedTracks(JSON.parse(stored));
+        }
+      } catch (error) {
+        console.error('Error loading added tracks:', error);
+      }
+    };
+    loadAddedTracks();
+  }, []);
+
+  const handleTrackToggle = async (trackId: string) => {
+    try {
+      let updatedTracks;
+      if (addedTracks.includes(trackId)) {
+        // Remove track
+        updatedTracks = addedTracks.filter(id => id !== trackId);
+      } else {
+        // Add track
+        updatedTracks = [...addedTracks, trackId];
+      }
+      
+      setAddedTracks(updatedTracks);
+      await AsyncStorage.setItem('addedTracks', JSON.stringify(updatedTracks));
+      
+      // Also store track activity data for prioritization
+      const trackActivityData = {
+        [trackId]: {
+          addedAt: new Date().toISOString(),
+          lastActivity: new Date().toISOString(),
+          activityCount: 0,
+        }
+      };
+      
+      const existingActivity = await AsyncStorage.getItem('trackActivity');
+      const currentActivity = existingActivity ? JSON.parse(existingActivity) : {};
+      
+      if (updatedTracks.includes(trackId)) {
+        // Adding track
+        await AsyncStorage.setItem('trackActivity', JSON.stringify({
+          ...currentActivity,
+          ...trackActivityData
+        }));
+      } else {
+        // Removing track
+        delete currentActivity[trackId];
+        await AsyncStorage.setItem('trackActivity', JSON.stringify(currentActivity));
+      }
+    } catch (error) {
+      console.error('Error toggling track:', error);
+    }
+  };
 
   const tracks = [
     {
@@ -251,6 +310,19 @@ export default function TracksScreen() {
                   </View>
                 </View>
               </View>
+              <TouchableOpacity
+                style={[
+                  styles.addRemoveButton,
+                  { backgroundColor: addedTracks.includes(track.id) ? '#ef4444' : '#10b981' }
+                ]}
+                onPress={() => handleTrackToggle(track.id)}
+              >
+                {addedTracks.includes(track.id) ? (
+                  <Minus size={16} color="#ffffff" />
+                ) : (
+                  <Plus size={16} color="#ffffff" />
+                )}
+              </TouchableOpacity>
 
               {isExpanded && (
                 <View style={styles.expandedContent}>
@@ -650,5 +722,17 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '700',
     color: '#ffffff',
+  },
+  addRemoveButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
   },
 });

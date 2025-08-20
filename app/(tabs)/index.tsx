@@ -56,6 +56,7 @@ const getDayColor = (activity) => {
 export default function HomeScreen() {
   const [userData, setUserData] = useState<any>(null);
   const [greeting, setGreeting] = useState('Good morning!');
+  const [ongoingLearning, setOngoingLearning] = useState<any[]>([]);
 
   useEffect(() => {
     const loadUserData = async () => {
@@ -79,30 +80,121 @@ export default function HomeScreen() {
     loadUserData();
   }, []);
 
+  // Load and prioritize ongoing learning tracks
+  useEffect(() => {
+    const loadOngoingLearning = async () => {
+      try {
+        const addedTracksData = await AsyncStorage.getItem('addedTracks');
+        const trackActivityData = await AsyncStorage.getItem('trackActivity');
+        
+        if (addedTracksData) {
+          const addedTracks = JSON.parse(addedTracksData);
+          const trackActivity = trackActivityData ? JSON.parse(trackActivityData) : {};
+          
+          // All available tracks data
+          const allTracks = [
+            {
+              id: 'data-analysis',
+              title: 'Communication Mastery',
+              subtitle: 'Intent Level Progress',
+              progress: 5,
+              total: 7,
+              daysLeft: 2,
+              color: '#10b981',
+            },
+            {
+              id: 'sdr-basics',
+              title: 'Leadership Fundamentals',
+              subtitle: 'Intent Level Progress',
+              progress: 45,
+              total: 90,
+              daysLeft: 45,
+              color: '#3b82f6',
+            },
+            {
+              id: 'customer-success',
+              title: 'Emotional Intelligence',
+              subtitle: 'Intent Level Progress',
+              progress: 0,
+              total: 7,
+              daysLeft: 7,
+              color: '#f59e0b',
+            },
+            {
+              id: 'leadership-fundamentals',
+              title: 'Time Management Excellence',
+              subtitle: 'Intent Level Progress',
+              progress: 0,
+              total: 7,
+              daysLeft: 7,
+              color: '#8b5cf6',
+            },
+            {
+              id: 'emotional-intelligence',
+              title: 'Conflict Resolution',
+              subtitle: 'Intent Level Progress',
+              progress: 0,
+              total: 7,
+              daysLeft: 7,
+              color: '#ec4899',
+            },
+            {
+              id: 'communication-mastery',
+              title: 'Customer Service Excellence',
+              subtitle: 'Intent Level Progress',
+              progress: 0,
+              total: 7,
+              daysLeft: 7,
+              color: '#06b6d4',
+            },
+          ];
+          
+          // Filter to only added tracks
+          const addedTrackData = allTracks.filter(track => addedTracks.includes(track.id));
+          
+          // Sort by priority: 1) Most progress, 2) Most recently added
+          const prioritizedTracks = addedTrackData.sort((a, b) => {
+            const aActivity = trackActivity[a.id];
+            const bActivity = trackActivity[b.id];
+            
+            // First priority: tracks with progress
+            if (a.progress > 0 && b.progress === 0) return -1;
+            if (b.progress > 0 && a.progress === 0) return 1;
+            
+            // If both have progress, sort by progress amount
+            if (a.progress > 0 && b.progress > 0) {
+              return b.progress - a.progress;
+            }
+            
+            // If neither has progress, sort by most recently added
+            if (aActivity && bActivity) {
+              return new Date(bActivity.addedAt).getTime() - new Date(aActivity.addedAt).getTime();
+            }
+            
+            return 0;
+          });
+          
+          // Take only the top 2 tracks
+          setOngoingLearning(prioritizedTracks.slice(0, 2));
+        } else {
+          setOngoingLearning([]);
+        }
+      } catch (error) {
+        console.error('Error loading ongoing learning:', error);
+      }
+    };
+    
+    loadOngoingLearning();
+    
+    // Set up interval to refresh data periodically
+    const interval = setInterval(loadOngoingLearning, 2000);
+    
+    return () => clearInterval(interval);
+  }, []);
+
   const streakData = {
     current: 12,
   };
-
-  const ongoingLearning = [
-    {
-      id: 'data-analysis',
-      title: 'Data Analysis Fundamentals',
-      subtitle: 'Intent Level Progress',
-      progress: 5,
-      total: 7,
-      daysLeft: 2,
-      color: '#10b981',
-    },
-    {
-      id: 'sdr-basics',
-      title: 'SDR Basics',
-      subtitle: 'Intent Level Progress',
-      progress: 45,
-      total: 90,
-      daysLeft: 45,
-      color: '#3b82f6',
-    },
-  ];
 
   const handlePlayQuiz = (trackId: string) => {
     router.push('/session');
@@ -125,6 +217,14 @@ export default function HomeScreen() {
         {/* Ongoing Learning */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Ongoing Learning</Text>
+          {ongoingLearning.length === 0 ? (
+            <View style={styles.noLearningContainer}>
+              <Text style={styles.noLearningText}>No active learning tracks</Text>
+              <Text style={styles.noLearningSubtext}>
+                Add tracks from the Tracks tab to start your learning journey
+              </Text>
+            </View>
+          ) : (
           {ongoingLearning.map((track, index) => (
             <TouchableOpacity 
               key={index} 
@@ -162,6 +262,7 @@ export default function HomeScreen() {
               </View>
             </TouchableOpacity>
           ))}
+          )}
           
           {/* Browse Tracks Button */}
           <TouchableOpacity 
@@ -446,5 +547,26 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 1,
+  },
+  noLearningContainer: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 12,
+    padding: 20,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    marginBottom: 16,
+  },
+  noLearningText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#64748b',
+    marginBottom: 8,
+  },
+  noLearningSubtext: {
+    fontSize: 14,
+    color: '#9ca3af',
+    textAlign: 'center',
+    lineHeight: 20,
   },
 });
