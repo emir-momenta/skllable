@@ -13,7 +13,7 @@ export default function ProfileScreen() {
     joinDate: '2024-10-15',
     timezone: 'America/New_York',
     department: 'Sales Development',
-    manager: 'Sarah Chen',
+    manager: 'Mike Johnson',
     employeeId: 'TC-2024-1847',
   });
 

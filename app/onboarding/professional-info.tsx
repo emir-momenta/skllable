@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { ArrowLeft, ArrowRight, User, Briefcase, Building2 } from 'lucide-react-native';
+import { ArrowLeft, ArrowRight, User, Briefcase, Building2, ChevronDown } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const PROFESSIONAL_ROLES = [
@@ -45,7 +45,7 @@ const PROFESSIONAL_ROLES = [
 export default function ProfessionalInfo() {
   const [selectedRole, setSelectedRole] = useState<string | null>(null);
   const [customRole, setCustomRole] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [showDropdown, setShowDropdown] = useState(false);
   const [userData, setUserData] = useState<any>(null);
 
   React.useEffect(() => {
@@ -63,12 +63,9 @@ export default function ProfessionalInfo() {
     loadUserData();
   }, []);
 
-  const filteredRoles = PROFESSIONAL_ROLES.filter(role =>
-    role.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
   const handleRoleSelect = (role: string) => {
     setSelectedRole(role);
+    setShowDropdown(false);
     if (role !== 'Other') {
       setCustomRole('');
     }
@@ -131,46 +128,64 @@ export default function ProfessionalInfo() {
             </Text>
           </View>
 
-          {/* Search Bar */}
-          <View style={styles.searchContainer}>
-            <User size={20} color="#64748b" />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search for your role..."
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              placeholderTextColor="#9ca3af"
-            />
+          {/* Role Dropdown */}
+          <View style={styles.dropdownContainer}>
+            <TouchableOpacity
+              style={styles.dropdownButton}
+              onPress={() => setShowDropdown(true)}
+            >
+              <User size={20} color="#64748b" />
+              <Text style={[
+                styles.dropdownButtonText,
+                !selectedRole && styles.dropdownPlaceholder
+              ]}>
+                {selectedRole || 'Select your professional role...'}
+              </Text>
+              <ChevronDown size={20} color="#64748b" />
+            </TouchableOpacity>
           </View>
 
-          {/* Role Selection */}
-          <View style={styles.rolesContainer}>
-            {filteredRoles.map((role, index) => (
-              <TouchableOpacity
-                key={index}
-                style={[
-                  styles.roleOption,
-                  selectedRole === role && styles.roleOptionSelected
-                ]}
-                onPress={() => handleRoleSelect(role)}
-              >
-                <View style={styles.roleContent}>
-                  <Building2 size={16} color={selectedRole === role ? "#3b82f6" : "#64748b"} />
-                  <Text style={[
-                    styles.roleText,
-                    selectedRole === role && styles.roleTextSelected
-                  ]}>
-                    {role}
-                  </Text>
-                  {selectedRole === role && (
-                    <View style={styles.selectedIndicator}>
-                      <View style={styles.selectedDot} />
-                    </View>
-                  )}
-                </View>
-              </TouchableOpacity>
-            ))}
-          </View>
+          {/* Dropdown Modal */}
+          <Modal
+            visible={showDropdown}
+            transparent={true}
+            animationType="fade"
+            onRequestClose={() => setShowDropdown(false)}
+          >
+            <TouchableOpacity
+              style={styles.modalOverlay}
+              activeOpacity={1}
+              onPress={() => setShowDropdown(false)}
+            >
+              <View style={styles.dropdownModal}>
+                <ScrollView style={styles.dropdownList} showsVerticalScrollIndicator={false}>
+                  {PROFESSIONAL_ROLES.map((role, index) => (
+                    <TouchableOpacity
+                      key={index}
+                      style={[
+                        styles.dropdownItem,
+                        selectedRole === role && styles.dropdownItemSelected
+                      ]}
+                      onPress={() => handleRoleSelect(role)}
+                    >
+                      <Building2 size={16} color={selectedRole === role ? "#3b82f6" : "#64748b"} />
+                      <Text style={[
+                        styles.dropdownItemText,
+                        selectedRole === role && styles.dropdownItemTextSelected
+                      ]}>
+                        {role}
+                      </Text>
+                      {selectedRole === role && (
+                        <View style={styles.selectedIndicator}>
+                          <View style={styles.selectedDot} />
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            </TouchableOpacity>
+          </Modal>
 
           {/* Custom Role Input */}
           {selectedRole === 'Other' && (
@@ -342,45 +357,71 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e2e8f0',
   },
-  searchInput: {
-    flex: 1,
-    fontSize: 16,
-    color: '#1e293b',
-    marginLeft: 12,
-  },
-  rolesContainer: {
+  dropdownContainer: {
     paddingHorizontal: 20,
-    marginBottom: 32,
+    marginBottom: 24,
   },
-  roleOption: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  roleOptionSelected: {
-    borderColor: '#3b82f6',
-    backgroundColor: '#f0f9ff',
-  },
-  roleContent: {
+  dropdownButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
     gap: 12,
   },
-  roleText: {
+  dropdownButtonText: {
     flex: 1,
     fontSize: 16,
     color: '#1e293b',
     fontWeight: '500',
   },
-  roleTextSelected: {
+  dropdownPlaceholder: {
+    color: '#9ca3af',
+    fontWeight: '400',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  dropdownModal: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    marginHorizontal: 20,
+    maxHeight: '70%',
+    width: '90%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  dropdownList: {
+    maxHeight: 400,
+  },
+  dropdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+    gap: 12,
+  },
+  dropdownItemSelected: {
+    backgroundColor: '#f0f9ff',
+  },
+  dropdownItemText: {
+    flex: 1,
+    fontSize: 16,
+    color: '#1e293b',
+    fontWeight: '500',
+  },
+  dropdownItemTextSelected: {
     color: '#3b82f6',
     fontWeight: '600',
   },

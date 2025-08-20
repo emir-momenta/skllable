@@ -1,8 +1,9 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, useEffect, useState } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Award, ChevronRight, Play } from 'lucide-react-native';
 import { router } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -53,6 +54,31 @@ const getDayColor = (activity) => {
 };
 
 export default function HomeScreen() {
+  const [userData, setUserData] = useState<any>(null);
+  const [greeting, setGreeting] = useState('Good morning!');
+
+  useEffect(() => {
+    const loadUserData = async () => {
+      try {
+        const storedData = await AsyncStorage.getItem('userData');
+        if (storedData) {
+          const user = JSON.parse(storedData);
+          setUserData(user);
+          
+          // Generate personalized greeting
+          const firstName = user.name ? user.name.split(' ')[0] : '';
+          if (firstName) {
+            setGreeting(`Good morning, ${firstName}!`);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading user data:', error);
+      }
+    };
+    
+    loadUserData();
+  }, []);
+
   const streakData = {
     current: 12,
   };
@@ -87,8 +113,11 @@ export default function HomeScreen() {
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View style={styles.header}>
-          <View>
-            <Text style={styles.greeting}>Good morning!</Text>
+          <View style={styles.headerContent}>
+            {userData?.accountType === 'business' && userData?.company && (
+              <Text style={styles.companyName}>{userData.company}</Text>
+            )}
+            <Text style={styles.greeting}>{greeting}</Text>
             <Text style={styles.subtitle}>Keep building those learning habits</Text>
           </View>
         </View>
@@ -206,6 +235,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingTop: 16,
     paddingBottom: 20,
+  },
+  headerContent: {
+    flex: 1,
+  },
+  companyName: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#3b82f6',
+    marginBottom: 4,
+    letterSpacing: -0.2,
   },
   greeting: {
     fontSize: 28,
