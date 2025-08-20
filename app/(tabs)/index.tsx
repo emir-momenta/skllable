@@ -11,6 +11,7 @@ import Animated, {
   withSpring, 
   runOnJS 
 } from 'react-native-reanimated';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -435,133 +436,168 @@ export default function HomeScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.headerContent}>
-            {userData?.accountType === 'business' && userData?.company && (
-              <Text style={styles.companyName}>{userData.company}</Text>
-            )}
-            <Text style={styles.greeting}>{greeting}</Text>
-            <Text style={styles.subtitle}>Keep building those learning habits</Text>
-          </View>
-        </View>
-
-        {/* Ongoing Learning */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Ongoing Learning</Text>
-          {ongoingLearning.length === 0 ? (
-            <View style={styles.noLearningContainer}>
-              <Text style={styles.noLearningText}>No active learning tracks</Text>
-              <Text style={styles.noLearningSubtext}>
-                Add tracks from the Tracks tab to start your learning journey
-              </Text>
+    <GestureHandlerRootView style={styles.container}>
+      <SafeAreaView style={styles.container}>
+        <ScrollView showsVerticalScrollIndicator={false}>
+          {/* Header */}
+          <View style={styles.header}>
+            <View style={styles.headerContent}>
+              {userData?.accountType === 'business' && userData?.company && (
+                <Text style={styles.companyName}>{userData.company}</Text>
+              )}
+              <Text style={styles.greeting}>{greeting}</Text>
+              <Text style={styles.subtitle}>Keep building those learning habits</Text>
             </View>
-          ) : (
-          ongoingLearning.map((track, index) => (
-            <TouchableOpacity 
-              key={index} 
-              style={styles.trackCard}
-              onPress={() => router.push('/tracks')}
-            >
-              <View style={styles.trackHeader}>
-                <Award size={20} color={track.color} />
-                <View style={styles.trackInfo}>
-                  <Text style={styles.trackTitle}>{track.title}</Text>
-                  <Text style={styles.trackSubtitle}>{track.subtitle}</Text>
-                </View>
-                <TouchableOpacity 
-                  style={[styles.playButton, { backgroundColor: track.color }]}
-                  onPress={() => handlePlayQuiz(track.id)}
-                >
-                  <Play size={16} color="#ffffff" />
-                </TouchableOpacity>
-              </View>
-              <View style={styles.progressContainer}>
-                <View style={styles.progressBar}>
-                  <View 
-                    style={[
-                      styles.progressFill, 
-                      { 
-                        width: `${(track.progress / track.total) * 100}%`,
-                        backgroundColor: track.color
-                      }
-                    ]} 
-                  />
-                </View>
-                <Text style={styles.progressText}>
-                  {track.progress}/{track.total} days • {track.daysLeft} days left
+          </View>
+
+          {/* Ongoing Learning */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Ongoing Learning</Text>
+            {ongoingLearning.length === 0 ? (
+              <View style={styles.noLearningContainer}>
+                <Text style={styles.noLearningText}>No active learning tracks</Text>
+                <Text style={styles.noLearningSubtext}>
+                  Add tracks from the Tracks tab to start your learning journey
                 </Text>
               </View>
+            ) : (
+            ongoingLearning.map((track, index) => (
+              <TouchableOpacity 
+                key={index} 
+                style={styles.trackCard}
+                onPress={() => router.push('/tracks')}
+              >
+                <View style={styles.trackHeader}>
+                  <Award size={20} color={track.color} />
+                  <View style={styles.trackInfo}>
+                    <Text style={styles.trackTitle}>{track.title}</Text>
+                    <Text style={styles.trackSubtitle}>{track.subtitle}</Text>
+                  </View>
+                  <TouchableOpacity 
+                    style={[styles.playButton, { backgroundColor: track.color }]}
+                    onPress={() => handlePlayQuiz(track.id)}
+                  >
+                    <Play size={16} color="#ffffff" />
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.progressContainer}>
+                  <View style={styles.progressBar}>
+                    <View 
+                      style={[
+                        styles.progressFill, 
+                        { 
+                          width: `${(track.progress / track.total) * 100}%`,
+                          backgroundColor: track.color
+                        }
+                      ]} 
+                    />
+                  </View>
+                  <Text style={styles.progressText}>
+                    {track.progress}/{track.total} days • {track.daysLeft} days left
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            ))
+            )}
+            
+            {/* Browse Tracks Button */}
+            <TouchableOpacity 
+              style={styles.browseTracksButton}
+              onPress={() => router.push('/tracks')}
+            >
+              <Text style={styles.browseTracksText}>Browse All Tracks</Text>
+              <ChevronRight size={16} color="#3b82f6" />
             </TouchableOpacity>
-          ))
-          )}
-          
-          {/* Browse Tracks Button */}
-          <TouchableOpacity 
-            style={styles.browseTracksButton}
-            onPress={() => router.push('/tracks')}
-          >
-            <Text style={styles.browseTracksText}>Browse All Tracks</Text>
-            <ChevronRight size={16} color="#3b82f6" />
-          </TouchableOpacity>
-        </View>
+          </View>
 
-        {/* Learning Activity Graph */}
-        <View style={styles.section}>
-          <View style={styles.activityHeader}>
-            <Text style={styles.sectionTitle}>Learning Activity</Text>
-            <View style={styles.streakBadge}>
-              <Text style={styles.streakNumber}>{streakData.currentStreak}</Text>
-              <Text style={styles.streakText}>day streak</Text>
+          {/* Learning Activity Graph */}
+          <View style={styles.section}>
+            <View style={styles.activityHeader}>
+              <Text style={styles.sectionTitle}>Learning Activity</Text>
+              <View style={styles.streakBadge}>
+                <Text style={styles.streakNumber}>{streakData.currentStreak}</Text>
+                <Text style={styles.streakText}>day streak</Text>
+              </View>
+            </View>
+            
+            {/* Swipe Hint */}
+            <View style={styles.swipeHint}>
+              <Text style={styles.swipeHintText}>← Swipe to navigate through time →</Text>
+              <TouchableOpacity style={styles.todayButton} onPress={resetToToday}>
+                <Text style={styles.todayButtonText}>Today</Text>
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.activityGraphCard}>
+              <PanGestureHandler onGestureEvent={panGestureHandler}>
+                <Animated.View style={[styles.heatmapContainer, animatedStyle]}>
+                  <View style={styles.contributionGraph}>
+                    {/* Month Labels with Anti-Overlap Logic */}
+                    <View style={styles.monthLabelsContainer}>
+                      {heatmapData.monthLabels.map((month, index) => (
+                        <Text 
+                          key={`${month.month}-${index}`}
+                          style={[
+                            styles.monthLabel,
+                            { left: Math.min(month.weekIndex * 14, 260) }
+                          ]}
+                        >
+                          {month.name}
+                        </Text>
+                      ))}
+                    </View>
+                    
+                    {/* Heatmap Grid */}
+                    <View style={styles.graphGrid}>
+                      {heatmapData.weeks.map((week, weekIndex) => (
+                        <View key={weekIndex} style={styles.weekColumn}>
+                          {week.map((day, dayIndex) => (
+                            <View
+                              key={dayIndex}
+                              style={[
+                                styles.daySquare,
+                                { 
+                                  backgroundColor: getDayColor(day.activity),
+                                  opacity: day.isInRange ? 1 : 0.3,
+                                  borderWidth: day.isToday ? 2 : 0,
+                                  borderColor: day.isToday ? '#3b82f6' : 'transparent'
+                                }
+                              ]}
+                            />
+                          ))}
+                        </View>
+                      ))}
+                    </View>
+                    
+                    {/* Legend */}
+                    <View style={styles.graphLegend}>
+                      <Text style={styles.legendText}>Less</Text>
+                      <View style={styles.legendSquares}>
+                        <View style={[styles.legendSquare, { backgroundColor: '#ebedf0' }]} />
+                        <View style={[styles.legendSquare, { backgroundColor: '#c6e48b' }]} />
+                        <View style={[styles.legendSquare, { backgroundColor: '#7bc96f' }]} />
+                        <View style={[styles.legendSquare, { backgroundColor: '#239a3b' }]} />
+                        <View style={[styles.legendSquare, { backgroundColor: '#196127' }]} />
+                      </View>
+                      <Text style={styles.legendText}>More</Text>
+                    </View>
+                  </View>
+                </Animated.View>
+              </PanGestureHandler>
+              
+              {/* Activity Summary */}
+              <View style={styles.activitySummary}>
+                <Text style={styles.activitySummaryText}>
+                  6-month view • Current streak: {streakData.currentStreak} days • Swipe to navigate
+                </Text>
+              </View>
             </View>
           </View>
-          
-          {/* Swipe Hint */}
-          <View style={styles.swipeHint}>
-            <Text style={styles.swipeHintText}>← Swipe to navigate through time →</Text>
-            <TouchableOpacity style={styles.todayButton} onPress={resetToToday}>
-              <Text style={styles.todayButtonText}>Today</Text>
-            </TouchableOpacity>
-          </View>
-          
-          <View style={styles.activityGraphCard}>
-            <PanGestureHandler onGestureEvent={panGestureHandler}>
-              <Animated.View style={[styles.heatmapContainer, animatedStyle]}>
-                <View style={styles.contributionGraph}>
-                  {/* Month Labels with Anti-Overlap Logic */}
-                  <View style={styles.monthLabelsContainer}>
-                    {heatmapData.monthLabels.map((month, index) => (
-                      <Text 
-                        key={`${month.month}-${index}`}
-                        style={[
-                          styles.monthLabel,
-                          { left: Math.min(month.weekIndex * 14, 260) }
-                        ]}
-                      >
-                        {month.name}
-                      </Text>
-                    ))}
-                  </View>
-                  
-                  {/* Heatmap Grid */}
-                  <View style={styles.graphGrid}>
-                    {heatmapData.weeks.map((week, weekIndex) => (
-                      <View key={weekIndex} style={styles.weekColumn}>
-                        {week.map((day, dayIndex) => (
-                          <View
-                            key={dayIndex}
-                            style={[
-                              styles.daySquare,
-                              { 
-                                backgroundColor: getDayColor(day.activity),
-                                opacity: day.isInRange ? 1 : 0.3,
-                                borderWidth: day.isToday ? 2 : 0,
-                                borderColor: day.isToday ? '#3b82f6' : 'transparent'
-                              }
-                            ]}
-                          />
+        </ScrollView>
+      </SafeAreaView>
+    </GestureHandlerRootView>
+  );
+}
                         ))}
                       </View>
                     ))}
