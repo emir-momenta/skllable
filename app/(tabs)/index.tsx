@@ -347,10 +347,6 @@ export default function HomeScreen() {
     return () => clearInterval(interval);
   }, []);
 
-  const streakData = {
-    current: streakData.currentStreak,
-  };
-
   const handlePlayQuiz = (trackId: string) => {
     router.push('/session');
   };
