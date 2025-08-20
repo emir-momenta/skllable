@@ -499,11 +499,13 @@ export default function ProfileScreen() {
             <ExternalLink size={16} color="#9ca3af" />
           </TouchableOpacity>
           
-          <TouchableOpacity style={styles.settingItem} onPress={contactIT}>
-            <User size={20} color="#64748b" />
-            <Text style={styles.settingText}>Contact IT Support</Text>
-            <ExternalLink size={16} color="#9ca3af" />
-          </TouchableOpacity>
+          {profile.accountType === 'business' && (
+            <TouchableOpacity style={styles.settingItem} onPress={contactIT}>
+              <User size={20} color="#64748b" />
+              <Text style={styles.settingText}>Contact IT Support</Text>
+              <ExternalLink size={16} color="#9ca3af" />
+            </TouchableOpacity>
+          )}
           
           <TouchableOpacity style={[styles.settingItem, styles.logoutItem]} onPress={handleLogout}>
             <Text style={styles.logoutText}>Logout</Text>
