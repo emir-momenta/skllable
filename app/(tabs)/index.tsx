@@ -598,39 +598,6 @@ export default function HomeScreen() {
     </GestureHandlerRootView>
   );
 }
-                        ))}
-                      </View>
-                    ))}
-                  </View>
-                  
-                  {/* Legend */}
-                  <View style={styles.graphLegend}>
-                    <Text style={styles.legendText}>Less</Text>
-                    <View style={styles.legendSquares}>
-                      <View style={[styles.legendSquare, { backgroundColor: '#ebedf0' }]} />
-                      <View style={[styles.legendSquare, { backgroundColor: '#c6e48b' }]} />
-                      <View style={[styles.legendSquare, { backgroundColor: '#7bc96f' }]} />
-                      <View style={[styles.legendSquare, { backgroundColor: '#239a3b' }]} />
-                      <View style={[styles.legendSquare, { backgroundColor: '#196127' }]} />
-                    </View>
-                    <Text style={styles.legendText}>More</Text>
-                  </View>
-                </View>
-              </Animated.View>
-            </PanGestureHandler>
-            
-            {/* Activity Summary */}
-            <View style={styles.activitySummary}>
-              <Text style={styles.activitySummaryText}>
-                6-month view • Current streak: {streakData.currentStreak} days • Swipe to navigate
-              </Text>
-            </View>
-          </View>
-        </View>
-      </ScrollView>
-    </SafeAreaView>
-  );
-}
 
 const styles = StyleSheet.create({
   container: {
