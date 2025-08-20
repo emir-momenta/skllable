@@ -261,8 +261,7 @@ export default function HomeScreen() {
                 </Text>
               </View>
             </TouchableOpacity>
-          ))}
-          )
+          ))
           )}
           
           {/* Browse Tracks Button */}
