@@ -149,6 +149,25 @@ export default function HomeScreen() {
     loadUserStreakData();
   }, [currentViewDate, streakData]);
 
+  // Navigate to previous 6-month period
+  const navigateToPrevious = () => {
+    const newDate = new Date(currentViewDate);
+    newDate.setMonth(newDate.getMonth() - 6);
+    setCurrentViewDate(newDate);
+  };
+
+  // Navigate to next 6-month period
+  const navigateToNext = () => {
+    const newDate = new Date(currentViewDate);
+    newDate.setMonth(newDate.getMonth() + 6);
+    setCurrentViewDate(newDate);
+  };
+
+  // Reset to current date
+  const resetToToday = () => {
+    setCurrentViewDate(new Date());
+  };
+
   // Load streak data from AsyncStorage
   useEffect(() => {
     const loadStreakData = async () => {
@@ -306,25 +325,6 @@ export default function HomeScreen() {
     loadOngoingLearning();
     
     // Set up interval to refresh data periodically
-  // Navigate to previous 6-month period
-  const navigateToPrevious = () => {
-    const newDate = new Date(currentViewDate);
-    newDate.setMonth(newDate.getMonth() - 6);
-    setCurrentViewDate(newDate);
-  };
-
-  // Navigate to next 6-month period
-  const navigateToNext = () => {
-    const newDate = new Date(currentViewDate);
-    newDate.setMonth(newDate.getMonth() + 6);
-    setCurrentViewDate(newDate);
-  };
-
-  // Reset to current date
-  const resetToToday = () => {
-    setCurrentViewDate(new Date());
-  };
-
     const interval = setInterval(loadOngoingLearning, 2000);
     
     return () => clearInterval(interval);
