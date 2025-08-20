@@ -1,9 +1,16 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, FlatList } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, PanGestureHandler, State } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Award, ChevronRight, Play, ChevronLeft } from 'lucide-react-native';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Animated, { 
+  useAnimatedGestureHandler, 
+  useAnimatedStyle, 
+  useSharedValue, 
+  withSpring, 
+  runOnJS 
+} from 'react-native-reanimated';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -107,7 +114,11 @@ export default function HomeScreen() {
   const [heatmapData, setHeatmapData] = useState<{ weeks: any[], monthLabels: any[] }>({ weeks: [], monthLabels: [] });
   const [currentViewDate, setCurrentViewDate] = useState(new Date());
   const [streakData, setStreakData] = useState({ completedDays: 0, currentStreak: 12 });
-  const [sliderPosition, setSliderPosition] = useState(50); // 50% = current date
+  
+  // Animation values for sliding
+  const translateX = useSharedValue(0);
+  const gestureActive = useSharedValue(false);
+  const [isTransitioning, setIsTransitioning] = useState(false);
 
   // Generate heatmap data when view date or streak data changes
   useEffect(() => {
@@ -138,52 +149,122 @@ export default function HomeScreen() {
         }
         
         const calendarData = generateActivityCalendar(currentViewDate, userStreakData);
-        setHeatmapData(calendarData);
+        const monthLabels = generateMonthLabels(calendarData.weeks);
+        setHeatmapData({ ...calendarData, monthLabels });
       } catch (error) {
         console.error('Error loading streak data for heatmap:', error);
         // Fallback to empty calendar
         const calendarData = generateActivityCalendar(currentViewDate, {});
-        setHeatmapData(calendarData);
+        const monthLabels = generateMonthLabels(calendarData.weeks);
+        setHeatmapData({ ...calendarData, monthLabels });
       }
     };
     
     loadUserStreakData();
-  }, [currentViewDate, streakData]);
 
-  // Navigate to previous 6-month period
-  const navigateToPrevious = () => {
-    const newDate = new Date(currentViewDate);
-    newDate.setMonth(newDate.getMonth() - 6);
-    setCurrentViewDate(newDate);
-    setSliderPosition(Math.max(0, sliderPosition - 20));
-  };
-
-  // Navigate to next 6-month period
-  const navigateToNext = () => {
-    const newDate = new Date(currentViewDate);
-    newDate.setMonth(newDate.getMonth() + 6);
-    setCurrentViewDate(newDate);
-    setSliderPosition(Math.min(100, sliderPosition + 20));
-  };
-
-  // Reset to current date
-  const resetToToday = () => {
-    setCurrentViewDate(new Date());
-    setSliderPosition(50);
-  };
-
-  // Handle slider interaction
-  const handleSliderPress = (event: any) => {
-    const { locationX } = event.nativeEvent;
-    const sliderWidth = 200; // Approximate slider width
-    const newPosition = Math.max(0, Math.min(100, (locationX / sliderWidth) * 100));
-    setSliderPosition(newPosition);
+  // Navigation functions
+  const navigateToTimeOffset = (monthsOffset: number) => {
+    if (isTransitioning) return;
     
-    // Calculate months offset from center (50%)
-    const monthsOffset = Math.round((newPosition - 50) * 0.24); // 0.24 = 12 months / 50%
-    const newDate = new Date();
+    setIsTransitioning(true);
+    const newDate = new Date(currentViewDate);
     newDate.setMonth(newDate.getMonth() + monthsOffset);
     setCurrentViewDate(newDate);
+    
+    // Reset animation after transition
+    setTimeout(() => {
+      setIsTransitioning(false);
+      translateX.value = 0;
+    }, 300);
+  };
+
+  // Reset to today
+  const resetToToday = () => {
+    if (isTransitioning) return;
+    
+    setIsTransitioning(true);
+    setCurrentViewDate(new Date());
+    translateX.value = withSpring(0);
+    
+    setTimeout(() => {
+      setIsTransitioning(false);
+    }, 300);
+  };
+
+  // Pan gesture handler for natural sliding
+  const panGestureHandler = useAnimatedGestureHandler({
+    onStart: () => {
+      gestureActive.value = true;
+    },
+    onActive: (event) => {
+      // Allow horizontal sliding with resistance at edges
+      const maxTranslate = 150;
+      const resistance = 0.7;
+      
+      if (Math.abs(event.translationX) > maxTranslate) {
+        translateX.value = event.translationX > 0 
+          ? maxTranslate + (event.translationX - maxTranslate) * resistance
+          : -maxTranslate + (event.translationX + maxTranslate) * resistance;
+      } else {
+        translateX.value = event.translationX;
+      }
+    },
+    onEnd: (event) => {
+      gestureActive.value = false;
+      
+      // Determine if swipe was significant enough to navigate
+      const threshold = 80;
+      const velocity = event.velocityX;
+      
+      if (Math.abs(event.translationX) > threshold || Math.abs(velocity) > 500) {
+        if (event.translationX > 0 || velocity > 500) {
+          // Swipe right - go to previous period
+          runOnJS(navigateToTimeOffset)(-3);
+        } else {
+          // Swipe left - go to next period
+          runOnJS(navigateToTimeOffset)(3);
+        }
+      } else {
+        // Snap back to center
+        translateX.value = withSpring(0);
+      }
+    },
+  });
+
+  // Animated style for the heatmap container
+  const animatedStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ translateX: translateX.value }],
+    };
+  });
+
+  // Generate month labels with proper spacing to prevent overlap
+  const generateMonthLabels = (weeks: any[]) => {
+    const monthLabels = [];
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    let currentMonth = -1;
+    let weekIndex = 0;
+    const minSpacing = 4; // Minimum weeks between labels
+    let lastLabelWeek = -minSpacing;
+    
+    for (const week of weeks) {
+      const firstDayInRange = week.find(day => day.isInRange);
+      if (firstDayInRange) {
+        const month = firstDayInRange.date.getMonth();
+        if (month !== currentMonth && weekIndex - lastLabelWeek >= minSpacing) {
+          monthLabels.push({
+            name: monthNames[month],
+            weekIndex: weekIndex,
+            month: month
+          });
+          currentMonth = month;
+          lastLabelWeek = weekIndex;
+        }
+      }
+      weekIndex++;
+    }
+    
+    return monthLabels;
   };
 
   // Load streak data from AsyncStorage
@@ -436,91 +517,75 @@ export default function HomeScreen() {
             </View>
           </View>
           
-          {/* Navigation Controls */}
-          <View style={styles.sliderContainer}>
-            <Text style={styles.sliderLabel}>Navigate Timeline</Text>
-            <View style={styles.sliderWrapper}>
-              <Text style={styles.sliderText}>Past</Text>
-              <View style={styles.customSlider}>
-                <View style={styles.sliderTrack}>
-                  <View 
-                    style={[
-                      styles.sliderThumb,
-                      { left: `${sliderPosition}%` }
-                    ]}
-                  />
-                </View>
-                <TouchableOpacity
-                  style={styles.sliderTouchArea}
-                  onPress={handleSliderPress}
-                />
-              </View>
-              <Text style={styles.sliderText}>Future</Text>
-            </View>
+          {/* Swipe Hint */}
+          <View style={styles.swipeHint}>
+            <Text style={styles.swipeHintText}>← Swipe to navigate through time →</Text>
             <TouchableOpacity style={styles.todayButton} onPress={resetToToday}>
               <Text style={styles.todayButtonText}>Today</Text>
             </TouchableOpacity>
           </View>
           
           <View style={styles.activityGraphCard}>
-            <View style={styles.heatmapContainer}>
-            <View style={styles.contributionGraph}>
-              {/* Month Labels */}
-              <View style={styles.monthLabelsContainer}>
-                {heatmapData.monthLabels.map((month, index) => (
-                  <Text 
-                    key={index} 
-                    style={[
-                      styles.monthLabel,
-                      { left: Math.min(month.weekIndex * 14, 280) } // Constrain label position
-                    ]}
-                  >
-                    {month.name}
-                  </Text>
-                ))}
-              </View>
-              
-              {/* Heatmap Grid */}
-              <View style={styles.graphGrid}>
-                {heatmapData.weeks.map((week, weekIndex) => (
-                  <View key={weekIndex} style={styles.weekColumn}>
-                    {week.map((day, dayIndex) => (
-                      <View
-                        key={dayIndex}
+            <PanGestureHandler onGestureEvent={panGestureHandler}>
+              <Animated.View style={[styles.heatmapContainer, animatedStyle]}>
+                <View style={styles.contributionGraph}>
+                  {/* Month Labels with Anti-Overlap Logic */}
+                  <View style={styles.monthLabelsContainer}>
+                    {heatmapData.monthLabels.map((month, index) => (
+                      <Text 
+                        key={`${month.month}-${index}`}
                         style={[
-                          styles.daySquare,
-                          { 
-                            backgroundColor: getDayColor(day.activity),
-                            opacity: day.isInRange ? 1 : 0.3,
-                            borderWidth: day.isToday ? 1 : 0,
-                            borderColor: day.isToday ? '#3b82f6' : 'transparent'
-                          }
+                          styles.monthLabel,
+                          { left: Math.min(month.weekIndex * 14, 260) }
                         ]}
-                      />
+                      >
+                        {month.name}
+                      </Text>
                     ))}
                   </View>
-                ))}
-              </View>
-              
-              {/* Legend */}
-              <View style={styles.graphLegend}>
-                <Text style={styles.legendText}>Less</Text>
-                <View style={styles.legendSquares}>
-                  <View style={[styles.legendSquare, { backgroundColor: '#ebedf0' }]} />
-                  <View style={[styles.legendSquare, { backgroundColor: '#c6e48b' }]} />
-                  <View style={[styles.legendSquare, { backgroundColor: '#7bc96f' }]} />
-                  <View style={[styles.legendSquare, { backgroundColor: '#239a3b' }]} />
-                  <View style={[styles.legendSquare, { backgroundColor: '#196127' }]} />
+                  
+                  {/* Heatmap Grid */}
+                  <View style={styles.graphGrid}>
+                    {heatmapData.weeks.map((week, weekIndex) => (
+                      <View key={weekIndex} style={styles.weekColumn}>
+                        {week.map((day, dayIndex) => (
+                          <View
+                            key={dayIndex}
+                            style={[
+                              styles.daySquare,
+                              { 
+                                backgroundColor: getDayColor(day.activity),
+                                opacity: day.isInRange ? 1 : 0.3,
+                                borderWidth: day.isToday ? 2 : 0,
+                                borderColor: day.isToday ? '#3b82f6' : 'transparent'
+                              }
+                            ]}
+                          />
+                        ))}
+                      </View>
+                    ))}
+                  </View>
+                  
+                  {/* Legend */}
+                  <View style={styles.graphLegend}>
+                    <Text style={styles.legendText}>Less</Text>
+                    <View style={styles.legendSquares}>
+                      <View style={[styles.legendSquare, { backgroundColor: '#ebedf0' }]} />
+                      <View style={[styles.legendSquare, { backgroundColor: '#c6e48b' }]} />
+                      <View style={[styles.legendSquare, { backgroundColor: '#7bc96f' }]} />
+                      <View style={[styles.legendSquare, { backgroundColor: '#239a3b' }]} />
+                      <View style={[styles.legendSquare, { backgroundColor: '#196127' }]} />
+                    </View>
+                    <Text style={styles.legendText}>More</Text>
+                  </View>
                 </View>
-                <Text style={styles.legendText}>More</Text>
-              </View>
-            </View>
-            </View>
+              </Animated.View>
+            </PanGestureHandler>
             
             {/* Activity Summary */}
             <View style={styles.activitySummary}>
               <Text style={styles.activitySummaryText}>
-                6-month view • Current streak: {streakData.currentStreak} days
+                6-month view • Current streak: {streakData.currentStreak} days • Swipe to navigate
               </Text>
             </View>
           </View>
@@ -709,68 +774,31 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     maxWidth: '100%',
     contain: 'layout',
+    paddingHorizontal: 4,
   },
-  sliderContainer: {
+  swipeHint: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
     paddingHorizontal: 8,
   },
-  sliderLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1e293b',
-    marginBottom: 12,
-  },
-  sliderWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 12,
-    width: '100%',
-    maxWidth: 280,
-  },
-  sliderText: {
-    fontSize: 12,
+  swipeHintText: {
+    fontSize: 13,
     color: '#64748b',
-    fontWeight: '500',
-  },
-  customSlider: {
+    fontStyle: 'italic',
     flex: 1,
-    height: 20,
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  sliderTrack: {
-    height: 4,
-    backgroundColor: '#e2e8f0',
-    borderRadius: 2,
-    position: 'relative',
-  },
-  sliderThumb: {
-    position: 'absolute',
-    top: -6,
-    width: 16,
-    height: 16,
-    backgroundColor: '#3b82f6',
-    borderRadius: 8,
-    shadowColor: '#3b82f6',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  sliderTouchArea: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
   },
   todayButton: {
     paddingHorizontal: 16,
     paddingVertical: 6,
     borderRadius: 8,
     backgroundColor: '#3b82f6',
+    shadowColor: '#3b82f6',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
   },
   todayButtonText: {
     fontSize: 12,
@@ -784,7 +812,7 @@ const styles = StyleSheet.create({
   },
   monthLabelsContainer: {
     position: 'relative',
-    width: 300,
+    width: 280,
     maxWidth: '100%',
     height: 20,
     marginBottom: 8,
@@ -792,15 +820,16 @@ const styles = StyleSheet.create({
   },
   monthLabel: {
     position: 'absolute',
-    fontSize: 11,
+    fontSize: 10,
     color: '#64748b',
     fontWeight: '500',
+    minWidth: 24,
   },
   graphGrid: {
     flexDirection: 'row',
     gap: 2,
     marginBottom: 12,
-    maxWidth: 300,
+    maxWidth: 280,
     overflow: 'hidden',
     alignSelf: 'flex-start',
   },
