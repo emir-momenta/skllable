@@ -25,39 +25,39 @@ export default function SessionScreen() {
 
   const tracks = [
     {
-      id: 'data-analysis',
-      title: 'Data Analysis Fundamentals',
-      color: '#3b82f6',
+      id: 'leadership-fundamentals',
+      title: 'Leadership Fundamentals',
+      color: '#10b981',
       questions: [
         {
-          question: "What is the primary purpose of data cleaning in analysis?",
+          question: "What is the most important quality of an effective leader?",
           options: [
-            "To make data look prettier",
-            "To remove errors and inconsistencies",
-            "To reduce file size",
-            "To encrypt sensitive information"
-          ],
-          correct: 1
-        },
-        {
-          question: "Which visualization is best for showing trends over time?",
-          options: [
-            "Pie chart",
-            "Bar chart",
-            "Line chart",
-            "Scatter plot"
+            "Being the smartest person in the room",
+            "Having all the answers",
+            "Inspiring and empowering others",
+            "Making all decisions quickly"
           ],
           correct: 2
         },
         {
-          question: "What does correlation measure?",
+          question: "How should a leader handle team conflicts?",
           options: [
-            "Causation between variables",
-            "The strength of relationship between variables",
-            "The average of a dataset",
-            "The size of a dataset"
+            "Ignore them and hope they resolve",
+            "Take sides with the stronger person",
+            "Listen to all parties and facilitate resolution",
+            "Make a quick decision to end it"
           ],
-          correct: 1
+          correct: 2
+        },
+        {
+          question: "What is the best way to motivate team members?",
+          options: [
+            "Use fear and pressure",
+            "Offer only monetary rewards",
+            "Understand individual motivations and provide support",
+            "Set impossible goals to push them"
+          ],
+          correct: 2
         }
       ]
     },
